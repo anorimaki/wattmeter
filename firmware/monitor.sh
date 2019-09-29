@@ -1,0 +1,1 @@
+$IDF_PATH/tools/idf_monitor.py --port COM7 .pio/build/ota/firmware.elf
