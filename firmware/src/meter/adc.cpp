@@ -1,6 +1,6 @@
 #include "util/trace.h"
 #include "util/indicator.h"
-#include "measurer/sampler.h"
+#include "meter/sampler.h"
 #include <esp_task.h>
 #include <freertos/task.h>
 #include <driver/adc.h>
@@ -67,7 +67,7 @@ static void directRead(void *pvParameters) {
 /**********************************************/
 /**********************************************/
 
-typedef sampler::Sampler<CHANNEL, ADC_CHANNEL_7> Sampler;
+typedef meter::Sampler<CHANNEL, ADC_CHANNEL_7> Sampler;
 Sampler sampler;
 
 static void dmaRead(void *pvParameters) {

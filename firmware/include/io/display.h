@@ -1,8 +1,9 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
+#include "io/ssd1306.h"
+#include "meter/calculatedmeter.h"
 #include "util/trace.h"
-#include "Adafruit_SSD1306.h"
 #include <Wire.h>
 
 
@@ -14,21 +15,17 @@ private:
     static const int ScreenHeight = 64;
 
 public:
-    Display(): m_impl(ScreenWidth, ScreenHeight, &Wire) {}
+    Display();
 
-    void init() {
-        Wire.begin( 27, 26, 400000UL );
-        if(!m_impl.begin(SSD1306_SWITCHCAPVCC, 0x3C, false, false)) {
-            TRACE_ERROR( "Error in LCD initialization" );
-            return;
-        }
-            // Clear the buffer.
-        m_impl.clearDisplay();
-        m_impl.display();
-    }
+    void init();
+
+    void mainView( const meter::CalculatedMeasures& measures );
 
 private:
-    Adafruit_SSD1306 m_impl;
+    void initSequence();
+
+private:
+    SSD1306 m_impl;
 };
 
 }

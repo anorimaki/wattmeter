@@ -1,7 +1,7 @@
-#include "measurer/voltage.h"
+#include "meter/voltage.h"
 #include "driver/gpio.h"
 
-namespace measurer {
+namespace meter {
 
 namespace voltage {
 

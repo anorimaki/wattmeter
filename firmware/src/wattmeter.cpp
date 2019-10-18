@@ -5,14 +5,12 @@
 
 #include "wifi/wifi.h"
 #include "wifi/ota.h"
-#include "measurer/voltage.h"
-#include "measurer/current.h"
-#include "measurer/sampler.h"
+
 #include "commands/commands.h"
 #include "io/display.h"
 #include "web/server.h"
-#include "measurer/sampler_processor.h"
-#include "model/sample.h"
+#include "meter/sampledmeter.h"
+#include "meter/calculatedmeter.h"
 #include "util/trace.h"
 #include <algorithm>
 #include <Arduino.h>
@@ -20,18 +18,15 @@
 static const char* hostname="wattmeter";
 static const adc_channel_t ZERO_ADC_CHANNEL = ADC_CHANNEL_6;
 
-typedef sampler::Sampler<measurer::Voltage::AdcChannel, 
-						measurer::Current::AdcChannel> MainSampler;
-MainSampler mainSampler;
-measurer::Voltage voltageMeasurer;
-measurer::Current currentMeasurer;
+meter::SampleBasedMeter sampledMeter;
+meter::CalculatorBasedMeter calculatedMeter;
 
 web::Server webServer(8080);
 io::Display display;
 
 
 uint16_t defaultZero() {
-    typedef sampler::Sampler<ZERO_ADC_CHANNEL> ZeroSampler;
+    typedef meter::Sampler<ZERO_ADC_CHANNEL> ZeroSampler;
     ZeroSampler zeroSampler;
 
 	zeroSampler.start();
@@ -44,42 +39,29 @@ uint16_t defaultZero() {
 }
 
 
-void autoRange() {
-    measurer::Voltage::AutoRangeAction voltageAutoRangeAction = voltageMeasurer.autoRangeAction();
-    measurer::Current::AutoRangeAction currentAutoRangeAction = currentMeasurer.autoRangeAction();
-    if ( voltageAutoRangeAction || currentAutoRangeAction ) {
-        mainSampler.pauseWhileAction( [&]() {
-            if ( voltageAutoRangeAction ) {
-                voltageAutoRangeAction();
-            }
-            if ( currentAutoRangeAction ) {
-                currentAutoRangeAction();
-            }
-        } ); 
+void showInfo( void* ) {
+    for(;;)  {
+        display.mainView( calculatedMeter.fetch() );
+        delay(300);
     }
-}
-
-
-void showInfo( const model::Samples& processedSamples ) {
-    webServer.send( processedSamples );
 }
 
 
 void readSamples( void* ) {
-    measurer::SamplerProcessor samplerProcessor(&voltageMeasurer, &currentMeasurer);
-    model::Samples processedSamples;
-    MainSampler::Samples samplesContainer;
+    meter::SampleBasedMeter::Measures sampledMeasures;
+
+    sampledMeter.start();
+
     for(;;) {
-        mainSampler.read( samplesContainer );
-        samplerProcessor.process( samplesContainer, processedSamples );
+        sampledMeter.read( sampledMeasures );
 
-        showInfo( processedSamples );
-
-        autoRange();
+        webServer.send( sampledMeasures );
+        calculatedMeter.process( sampledMeasures );
     }
 }
 
 
+TaskHandle_t readSamplesTask;
 void setup()
 {
 	Serial.begin(115200);
@@ -90,44 +72,44 @@ void setup()
 	Serial.setDebugOutput(true);
 #endif
 
-    display.init();
+    display.init(); 
 
 	wifi::init(hostname);
 	ota::init(hostname);
 
     commands::init();
 
-    delay(500);
 	uint16_t zero = defaultZero();
-
-	//voltageMeasurer.init( 518 );
-	//currentMeasurer.init( 514 );
-    voltageMeasurer.init( zero );
-	currentMeasurer.init( zero );
+    sampledMeter.init( zero );
 	
+    delay(500);
     webServer.begin();
 
-    mainSampler.start();
-
     TaskHandle_t readSamplesTask;
-    xTaskCreate( readSamples, "readSamples", 5020, NULL, 1, &readSamplesTask );
+    xTaskCreate( readSamples, "readSamples", 7168, NULL, 3, &readSamplesTask );
+
+    TaskHandle_t showInfoTask;
+    xTaskCreate( showInfo, "showInfo", 2048, NULL, 1, &showInfoTask );
 }
 
 
 void loop()
 {
+#if 0
+    trace::timeInterval( "loop" );
+
+    UBaseType_t uxHighWaterMark = uxTaskGetStackHighWaterMark(readSamplesTask);
+    printf( "Stack w: %u\n", uxHighWaterMark );
+#endif
+
 	ota::handle();
 
 	if ( commands::isZerosCalibrationRequest() ) {
-        mainSampler.pauseWhileAction( [&]() {
-            voltageMeasurer.calibrateZeros();
-            currentMeasurer.calibrateZeros();
-        });
+        sampledMeter.calibrateZeros();
 	}
 
 	if ( commands::isFactorsCalibrationRequest() ) {
-        mainSampler.pauseWhileAction( [&]() {
-		    voltageMeasurer.calibrateFactors();
-        });
+        sampledMeter.calibrateFactors();
 	}
 }
+

@@ -1,12 +1,12 @@
 #ifndef VOLTAGE_H
 #define VOLTAGE_H
 
-#include "measurer/measurer.h"
+#include "meter/singlesampledmeter.h"
 #include "driver/adc.h"
 #include <array>
 
 
-namespace measurer {
+namespace meter {
 
 namespace voltage {
 
@@ -18,14 +18,13 @@ struct CalibrationData {
 
 CalibrationData readClibrationData();
 
-void setGPIORange( size_t range );
-
 void init();
+void setGPIORange( size_t range );
 
 }
 
 
-class Voltage: public Measurer<voltage::INPUT_CHANNEL, 3> {
+class VoltageMeter: public SingleSampleBasedMeter<voltage::INPUT_CHANNEL, 3> {
 private:
 #if 0
 	static const uint RH = 1000000;
@@ -43,10 +42,10 @@ private:
 	static const uint32_t RL_2 = 11830;
 	static const uint32_t RL_3 = 66600;
 #endif
-    typedef Measurer<voltage::INPUT_CHANNEL, 3> Base;
+    typedef SingleSampleBasedMeter<voltage::INPUT_CHANNEL, 3> Base;
 	
 public:
-	Voltage(): Base(voltage::setGPIORange) {
+	VoltageMeter(): Base(voltage::setGPIORange) {
 		voltage::init();
 	}
 

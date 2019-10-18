@@ -7,7 +7,7 @@
 #include <algorithm>
 
 
-namespace measurer {
+namespace meter {
 
 class Range {
 public:

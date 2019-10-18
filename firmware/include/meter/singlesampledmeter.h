@@ -1,8 +1,8 @@
-#ifndef MEASURER_MEASURER_H
-#define MEASURER_MEASURER_H
+#ifndef SINGLE_SAMPLED_METER_H
+#define SINGLE_SAMPLED_METER_H
 
-#include "measurer/ranges.h"
-#include "measurer/sampler.h"
+#include "meter/ranges.h"
+#include "meter/sampler.h"
 #include "util/trace.h"
 
 #include "driver/adc.h"
@@ -17,15 +17,15 @@
 #include <cstdio>
 #endif
 
-namespace measurer {
+namespace meter {
 
 
 template <adc_channel_t Channel, size_t N_RANGES>
-class Measurer {
+class SingleSampleBasedMeter {
 private:
-    typedef Measurer<Channel, N_RANGES> ThisType;
-	typedef measurer::Ranges<N_RANGES> Ranges;
-	typedef sampler::Sampler<Channel> CalibrationSampler;
+    typedef SingleSampleBasedMeter<Channel, N_RANGES> ThisType;
+	typedef meter::Ranges<N_RANGES> Ranges;
+	typedef Sampler<Channel> CalibrationSampler;
 	
 protected:
 	typedef std::function<void(size_t)> GPIORangeSetter;
@@ -40,11 +40,12 @@ public:
     typedef std::function<void()> AutoRangeAction;
 	
 public:
+    static const size_t RangesSize = N_RANGES;
     static const adc_channel_t AdcChannel = Channel;
 	static const size_t AutoRange = N_RANGES;
 
 public:
-	Measurer( GPIORangeSetter gpioRangeSetter ): 
+	SingleSampleBasedMeter( GPIORangeSetter gpioRangeSetter ): 
 		m_gpioRangeSetter(gpioRangeSetter) {}
 
 	void initRanges( const RangesInitializer& ranges ) {

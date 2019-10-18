@@ -1,4 +1,4 @@
-#include "measurer/sampler.h"
+#include "meter/sampler.h"
 #include "util/trace.h"
 
 #include "freertos/FreeRTOS.h"
@@ -22,7 +22,7 @@ extern "C" {
 
 extern portMUX_TYPE rtc_spinlock;
 
-namespace sampler {
+namespace meter {
 
 static uint32_t adcVref = 1108;			// default value. Value in mV
 
@@ -115,10 +115,12 @@ void start( const nonstd::span<const adc_channel_t>& channels ) {
 		adc_gpio_init(ADC_UNIT_1, channel);
 	});
     
+    i2s_adc_enable(I2S_NUM_0);
+
+    portENTER_CRITICAL(&rtc_spinlock);
+
     // The raw ADC data is written in DMA in inverted form.
 	SYSCON.saradc_ctrl2.sar1_inv = 1;
-
-    i2s_adc_enable(I2S_NUM_0);
 
 	// i2s_adc_enable resets pattern table. So it must be set after enable it
 	adc_set_i2s_data_len(ADC_UNIT_1, channels.size());
@@ -128,13 +130,15 @@ void start( const nonstd::span<const adc_channel_t>& channels ) {
 		++index;
 	});
 
+    portEXIT_CRITICAL(&rtc_spinlock);
+
     clearRxBuffer();
 }
 
 
 void stop() {
 	i2s_adc_disable(I2S_NUM_0);
-    clearRxBuffer();
+ //   clearRxBuffer();
     i2s_driver_uninstall(I2S_NUM_0);
 }
 

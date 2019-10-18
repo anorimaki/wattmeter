@@ -1,24 +1,25 @@
-#ifndef ADC_H
-#define ADC_H
+#ifndef METER_SAMPLER_H
+#define METER_SAMPLER_H
 
 #include "util/trace.h"
 #include "driver/adc.h"
-#include "model/sample.h"
 #include "nonstd/span.hpp"
+#include "freertos/semphr.h"
 #include <array>
 #include <type_traits>
 #include <functional>
 
 
-namespace sampler {
+
+namespace meter {
 
 namespace _ {
 
 const size_t SampleRate = 44000;        //Min: 6000
-const size_t SamplesGroupSize = model::SamplesGroupSize;
-const size_t BufferSize = model::SamplesSize * model::SamplesGroupSize;      //in number of samples (not bytes)
+const size_t SamplesGroupSize = 16;
+const size_t BufferSize = 1024;      //in number of samples (not bytes)
 const size_t BufferCount = 2;
-const size_t MaxSamples = model::SamplesSize;
+const size_t MaxSamples = BufferSize / SamplesGroupSize;
 
 template <adc_channel_t Channel, size_t CurrentPosition, adc_channel_t... Channels>
 struct FindChannelPosition {};
@@ -91,13 +92,21 @@ public:
 	typedef std::array<Sample, _::MaxSamples> Samples;
 
 public:
-	Sampler(): m_channels({ Channels... }) {}
+	Sampler(): m_channels({ Channels... }) {
+        m_accessSemaphore = xSemaphoreCreateBinary();
+    }
+
+    ~Sampler() {
+        vSemaphoreDelete(m_accessSemaphore);
+    }
 
 	void start() {
 		_::start( nonstd::span<const adc_channel_t>( m_channels ) );
+        xSemaphoreGive( m_accessSemaphore );
 	}
 
 	void stop() {
+        xSemaphoreTake( m_accessSemaphore, portMAX_DELAY );
 		_::stop();
 	}
 
@@ -112,9 +121,13 @@ public:
 	//		return 0;
 	//	}
 
+        xSemaphoreTake( m_accessSemaphore, portMAX_DELAY );
+
 		typedef std::array<uint16_t, _::BufferSize> Buffer;
 		Buffer buffer;
 		size_t valuesRead = _::readData( buffer );
+
+        xSemaphoreGive( m_accessSemaphore );
 
         const nonstd::span<uint16_t> values( buffer.data(), valuesRead );
 		nonstd::span<uint16_t>::const_iterator it = values.begin();
@@ -196,13 +209,14 @@ private:
 						std::find( m_channels.begin(), m_channels.end(), channel );
 		if ( it == m_channels.end() ) {
 			TRACE( "Data found for unknown channel: %d", channel );
-            abort();
+          //  abort();
 		}
 		return std::distance( m_channels.begin(), it );
 	}
 
 private:
 	const typename ChannelsTraits::Array m_channels;
+    SemaphoreHandle_t m_accessSemaphore;
 };
 
 }

@@ -12,6 +12,12 @@ std::string format( const __FlashStringHelper* format, ... );
 
 void log( const char* level, const char* file, int line, const char *msg );
 
+uint64_t timeInterval( const std::string& id );
+
+inline void traceTimeInterval( const std::string& id ) {
+    Serial.printf( "%s time interval %llu ms\n", id.c_str(), timeInterval(id) / 1000 );
+}
+
 }
 
 
@@ -38,6 +44,5 @@ void log( const char* level, const char* file, int line, const char *msg );
             TRACE_ERROR("ESP error: %d", __err_rc);                 \
         }                                                           \
     } while(0);
-
 
 #endif /* INCLUDE_UTIL_TRACE_H_ */

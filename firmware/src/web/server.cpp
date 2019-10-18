@@ -2,17 +2,19 @@
 #include "util/trace.h"
 
 
+
 const size_t EncodedSampleSize = sizeof(float) * 2;
-const size_t EncodedSamplesSize = model::SamplesSize * EncodedSampleSize;
+const size_t EncodedSamplesSize = meter::SampleBasedMeter::MeasuresSize * EncodedSampleSize;
 static const size_t SendSamplesPacketSize = 3;
 
-void* transfer( const model::Samples& samples, void* buffer ) {
+void* transfer( const meter::SampleBasedMeter::Measures& samples, void* buffer ) {
 	float* pos = reinterpret_cast<float*>(buffer);
-	std::for_each( samples.begin(), samples.end(), [&](const model::Sample& sample) {
-		*pos = sample.voltage();
-		*(pos+1) = sample.current();
-		pos += 2;
-	});
+	std::for_each( samples.begin(), samples.end(),
+        [&](const meter::SampleBasedMeter::Measure& sample) {
+		    *pos = sample.voltage();
+		    *(pos+1) = sample.current();
+		    pos += 2;
+	    });
 	return pos;
 }
 
@@ -32,7 +34,7 @@ void Server::begin() {
 }
 
 
-void Server::send( const model::Samples& samples ) {
+void Server::send( const meter::SampleBasedMeter::Measures& samples ) {
     if ( (m_sendBufferPos==NULL) && 
         ((m_ws->count() == 0) || !m_ws->availableForWrite()) ) {
     //    TRACE( "Samples has been discarded" );

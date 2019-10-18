@@ -1,9 +1,8 @@
 #ifndef WEB_WEBSERVER_H
 #define WEB_WEBSERVER_H
 
-#include "model/sample.h"
+#include "meter/sampledmeter.h"
 #include "web/defaultwebsocketserver.h"
-#include "util/circularbuffer.h"
 #include <stdint.h>
 #include <array>
 #include <deque>
@@ -13,15 +12,12 @@
 namespace web {
 
 class Server {
-private:
-    typedef CircularBuffer<model::Samples, 8> SamplesBuffer;
-
 public:
     Server( uint16_t port );
     ~Server();
 
     void begin();
-    void send( const model::Samples& samples );
+    void send( const meter::SampleBasedMeter::Measures& samples );
 
 private:
     Server( const Server& ) = delete;

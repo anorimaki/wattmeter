@@ -1,6 +1,6 @@
-#include "measurer/current.h"
+#include "meter/current.h"
 
-namespace measurer {
+namespace meter {
 
 namespace current {
 

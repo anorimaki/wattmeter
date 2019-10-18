@@ -1,12 +1,12 @@
-#ifndef CURRENT_H
-#define CURRENT_H
+#ifndef CURRENT_METER_H
+#define CURRENT_METER_H
 
-#include "measurer/measurer.h"
+#include "meter/singlesampledmeter.h"
 #include "driver/adc.h"
 #include <array>
 
 
-namespace measurer {
+namespace meter {
 
 namespace current {
 
@@ -28,7 +28,7 @@ void init();
 }
 
 
-class Current: public Measurer<current::INPUT_CHANNEL, current::N_RANGES> {
+class CurrentMeter: public SingleSampleBasedMeter<current::INPUT_CHANNEL, current::N_RANGES> {
 private:
 #if 0		//teorico
 	static const uint32_t AMPLIFIER_R_IN = 10000;
@@ -44,10 +44,10 @@ private:
 #endif
 	static constexpr float AMPLIFIER_GAIN = 1.0 + (AMPLIFIER_R_FB / AMPLIFIER_R_IN);
 	
-	typedef Measurer<current::INPUT_CHANNEL, current::N_RANGES> Base;
+	typedef SingleSampleBasedMeter<current::INPUT_CHANNEL, current::N_RANGES> Base;
 	
 public:
-	Current(): Base(current::setGPIORange) {
+	CurrentMeter(): Base(current::setGPIORange) {
 		current::init();
 	}
 
