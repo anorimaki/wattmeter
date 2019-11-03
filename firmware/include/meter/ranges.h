@@ -25,7 +25,7 @@ public:
 	void setZero( uint16_t zero ) {
 		m_max = m_factor * (HIGHEST_INPUT_VALUE-zero);
 		m_min = m_factor * (LOWEST_INPUT_VALUE-zero);
-		TRACE( "Zero changed: %u -> %u [%f .. %f]", m_zero, zero, m_min, m_max );
+		TRACE( "Zero changed: %u -> %u [%f .. %f] (%f)", m_zero, zero, m_min, m_max, m_factor );
 		m_zero = zero;
 	}
 

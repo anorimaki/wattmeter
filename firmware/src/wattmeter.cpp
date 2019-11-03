@@ -41,8 +41,7 @@ uint16_t defaultZero() {
 
 void showInfo( void* ) {
     for(;;)  {
-        display.mainView( calculatedMeter.fetch() );
-        delay(300);
+        display.update( calculatedMeter.get() );
     }
 }
 
@@ -53,10 +52,10 @@ void readSamples( void* ) {
     sampledMeter.start();
 
     for(;;) {
-        sampledMeter.read( sampledMeasures );
+        uint64_t time = sampledMeter.read( sampledMeasures );
 
         webServer.send( sampledMeasures );
-        calculatedMeter.process( sampledMeasures );
+        calculatedMeter.process( time, sampledMeasures );
     }
 }
 

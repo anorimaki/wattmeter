@@ -39,7 +39,7 @@ namespace _ {
 static QueueHandle_t i2sEventQueue;
 static esp_adc_cal_characteristics_t adcCalCharacteristics;
 
-
+// Copied from ESP-IDF rtc_module.c
 static esp_err_t adc_set_i2s_data_len(adc_unit_t adc_unit, int patt_len) {
     portENTER_CRITICAL(&rtc_spinlock);
     if(adc_unit & ADC_UNIT_1) {
@@ -52,7 +52,7 @@ static esp_err_t adc_set_i2s_data_len(adc_unit_t adc_unit, int patt_len) {
     return ESP_OK;
 }
 
-
+// Copied from ESP-IDF rtc_module.c
 static esp_err_t adc_set_i2s_data_pattern(adc_unit_t adc_unit, 
 									int seq_num, adc_channel_t channel, 
 									adc_bits_width_t bits, adc_atten_t atten) {
@@ -154,11 +154,16 @@ bool receivedData() {
 }
 
 
-size_t readData( Buffer& buffer ) {
+int64_t readData( Buffer& buffer ) {
+    static const size_t BufferBytes  = _::BufferSize * sizeof(uint16_t);
 	size_t bytesRead = 0;
-	TRACE_ESP_ERROR_CHECK(i2s_read(I2S_NUM_0, reinterpret_cast<char*>(buffer.data()),
-							buffer.size() * 2, &bytesRead, portMAX_DELAY));
-	return bytesRead >> 1;
+	TRACE_ESP_ERROR_CHECK(i2s_read( I2S_NUM_0, 
+                                    reinterpret_cast<char*>(buffer.data()),
+							        BufferBytes, 
+                                    &bytesRead, 
+                                    portMAX_DELAY ));
+    assert( bytesRead == BufferBytes );
+	return esp_timer_get_time() - (1000000ULL * _::BufferSize / SampleRate);
 }
 
 

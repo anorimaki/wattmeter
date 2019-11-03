@@ -1,43 +1,108 @@
 #include "io/display.h"
 #include "util/trace.h"
-#include "Adafruit_GFX.h"
 #include "driver/i2c.h"
+#include "Adafruit_GFX.h"
+#include "font/dialog6pt.h"
+#include "font/dialog7pt.h"
+#include "font/dialog8pt.h"
+#include "font/dialog14pt.h"
+#include "font/dialog15pt.h"
+#include "font/dialog16pt.h"
+#include "font/dialog17pt.h"
+#include "font/sansserif6pt.h"
+#include "font/roboto10pt.h"
+#include "font/robotocondensed8pt.h"
+#include "font/robotocondensed10pt.h"
+#include "font/robotocondensed13pt.h"
+#include "font/robotocondensed15pt.h"
+#include "Fonts/FreeSans9pt7b.h"
+#include "Fonts/Tiny3x3a2pt7b.h"
+#include "Fonts/Picopixel.h"
+#include "Fonts/Org_01.h"
+#include "Fonts/TomThumb.h"
+
+
 
 namespace io {
 
 
-Display::Display(): m_impl(ScreenWidth, ScreenHeight) {
+void justify( SSD1306& lcd, int16_t y, const String& text,
+            std::function<int16_t (int16_t)> f ) {
+    int16_t x1, y1;
+    uint16_t w, h;
+    lcd.getTextBounds( text, 0, y, &x1, &y1, &w, &h );
+    lcd.setCursor( f(w), y );
+    lcd.print(text);
+}
 
+static void center( SSD1306& lcd, int16_t y, const String& text ) {
+    justify( lcd, y, text, [](int16_t width) { return Display::ScreenWidth/2 - (width/2); } );
+}
+
+
+static void right( SSD1306& lcd, int16_t y, const String& text ) {
+    justify( lcd, y, text, [](int16_t width) { return (Display::ScreenWidth - width)-3; } );
+}
+
+
+static String adjustUnit( float value, const char* unit ) {
+    return (abs(value) < 0) ? 
+                String(value * 1000, 2) + " m" + unit :
+                String(value, 2) + " " + unit ;
+}
+
+Display::Display(): m_lcd(ScreenWidth, ScreenHeight) {
+    
 }
 
 void Display::init() {
 #if 0
     Wire.begin( 27, 26 );
-    if(!m_impl.begin(SSD1306_SWITCHCAPVCC, 0x3C, false, false)) {
+    if(!m_lcd.begin(SSD1306_SWITCHCAPVCC, 0x3C, false, false)) {
         TRACE_ERROR( "Error in LCD initialization" );
         return;
     }
 #else
-    m_impl.init();
+    m_lcd.init();
 #endif
 }
 
-void Display::mainView( const meter::CalculatedMeasures& measures ) {
-    m_impl.clearDisplay();
-    m_impl.setTextSize(1);
-    m_impl.setTextColor(WHITE);
-#if 1
-    m_impl.setCursor( 1, 16 );
-    m_impl.printf("Voltage: %.2f mV", measures.voltage());
-    m_impl.setCursor( 1, 25 );
-    m_impl.printf("Sample r: %u Hz", measures.sampleRate());
-    m_impl.display();
-#else
-    m_impl.drawPixel(0, 0, 1);
-    m_impl.drawPixel(1, 1, 1);
-    m_impl.drawPixel(2, 2, 1);
-    m_impl.display();
-#endif
+
+void Display::update( const meter::CalculatedMeasures& measures ) {
+    m_lcd.clearDisplay();
+
+    mainHeader( measures.signalFrequency(), measures.sampleRate() );
+
+    m_lcd.setFont(&Dialog_plain_14);
+    m_lcd.setCursor( 0, 31 );
+    m_lcd.print( String(measures.voltage().rms(), 2) + " V" );
+ 
+    m_lcd.setCursor( 0, 47 );
+    m_lcd.print( adjustUnit(measures.current().rms(), "A" ) );
+
+    const meter::PowerMeasure& power = measures.power();
+    m_lcd.setCursor( 0, 63 );
+    m_lcd.print( adjustUnit(power.active(), "W" ) );
+
+    m_lcd.setFont(&Dialog_plain_8);
+    right( m_lcd, 34, adjustUnit(power.apparent(), "VA") );
+    right( m_lcd, 47, adjustUnit(power.reactive(), "VAR") );
+    right( m_lcd, 59, String("PF: ") + String( power.factor(), 2 ) );
+
+    m_lcd.display();
 }
+
+void Display::mainHeader( uint32_t signalFrequency, uint32_t sampleRate ) {
+    m_lcd.setTextColor( SSD1306::White );
+
+    m_lcd.setFont(&Dialog_plain_17);
+    String title = (signalFrequency==0) ? String("DC") :
+                                        String(signalFrequency, 10) + " Hz";
+    center( m_lcd, 15, title );
+
+    m_lcd.setFont(&Dialog_plain_8);
+    right( m_lcd, 8, String(sampleRate, 10) );
+}
+
 
 }

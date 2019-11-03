@@ -10,7 +10,7 @@
 namespace io {
 
 class Display {
-private:
+public:
     static const int ScreenWidth = 128;
     static const int ScreenHeight = 64;
 
@@ -19,13 +19,15 @@ public:
 
     void init();
 
-    void mainView( const meter::CalculatedMeasures& measures );
+    void update( const meter::CalculatedMeasures& measures );
 
 private:
-    void initSequence();
+    void mainHeader( uint32_t signalFrequency, uint32_t sampleRate );
+    void mainView( const meter::VariableMeasure& voltage, const meter::VariableMeasure& current );
+    void mainView( const meter::PowerMeasure& power );
 
 private:
-    SSD1306 m_impl;
+    SSD1306 m_lcd;
 };
 
 }

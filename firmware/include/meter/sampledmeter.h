@@ -9,7 +9,7 @@ namespace meter {
 
 class SampleBasedMeter {
 public:
-    static const size_t MeasuresSize = _::MaxSamples;
+    static const size_t MeasuresSize = _::GroupedSamplesSize;
 
     class Measure {
     public:
@@ -45,11 +45,12 @@ public:
         m_sampler.start();
     }
 
-    void read( Measures& result ) {
+    uint64_t read( Measures& result ) {
         Sampler::Samples samples;
-        m_sampler.read( samples );
+        uint64_t time = m_sampler.read( samples );
         process( samples, result );
         autoRange();
+        return time;
     }
 
     void calibrateZeros() {

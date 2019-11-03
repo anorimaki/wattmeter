@@ -1,9 +1,14 @@
 #ifndef SSD1306_H
 #define SSD1306_H
 
-#include "Adafruit_SSD1306.h"
+#include "Adafruit_GFX.h"
 
 class SSD1306: public Adafruit_GFX {
+public:
+    static const uint16_t Black = 0;
+    static const uint16_t White = 1;
+    static const uint16_t Inverse = 2;
+
 public:
     SSD1306(uint8_t w, uint8_t h);
     virtual ~SSD1306();

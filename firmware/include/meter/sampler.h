@@ -19,7 +19,15 @@ const size_t SampleRate = 44000;        //Min: 6000
 const size_t SamplesGroupSize = 16;
 const size_t BufferSize = 1024;      //in number of samples (not bytes)
 const size_t BufferCount = 2;
-const size_t MaxSamples = BufferSize / SamplesGroupSize;
+const size_t GroupedSamplesSize = BufferSize / SamplesGroupSize;
+
+// - Sample rate for various channels: SampleRate / NumChannels. For 2 channels (V and I):
+//   22000 samples/s (period = 45.45 us). A 50Hz signal is sampled 440 times per cycle.
+// - Sample rate after grouping: SampleRate / SamplesGroupSize = 2750 values/s (period = 36.36 us).
+//   For a 50Hz signal, we have 55 values per cycle for V and I. 
+// - Each channel value of a group is the average of SamplesGroupSize / NumChannels values.
+// - Buffer sample time: BufferSize / SampleRate = 23.272 ms. It's nearly a period of
+//   a 50Hz sinusoidal (20ms).
 
 template <adc_channel_t Channel, size_t CurrentPosition, adc_channel_t... Channels>
 struct FindChannelPosition {};
@@ -50,7 +58,9 @@ struct ChannelsTraits {
 bool receivedData();
 
 typedef std::array<uint16_t, _::BufferSize> Buffer;
-size_t readData( Buffer& buffer );
+
+// Returns time in us when the first value was sampled
+int64_t readData( Buffer& buffer );
 
 void start( const nonstd::span<const adc_channel_t>& channels );
 
@@ -89,7 +99,7 @@ public:
 		std::array<uint16_t, ChannelsTraits::size> m_variables;
 	};
 
-	typedef std::array<Sample, _::MaxSamples> Samples;
+	typedef std::array<Sample, _::GroupedSamplesSize> Samples;
 
 public:
 	Sampler(): m_channels({ Channels... }) {
@@ -116,31 +126,22 @@ public:
         start();
     }
 
-	size_t read( Samples& samples ) {
-	//	if ( !_::receivedData() ) {
-	//		return 0;
-	//	}
-
+	uint64_t read( Samples& samples ) {
         xSemaphoreTake( m_accessSemaphore, portMAX_DELAY );
 
-		typedef std::array<uint16_t, _::BufferSize> Buffer;
-		Buffer buffer;
-		size_t valuesRead = _::readData( buffer );
+		_::Buffer buffer;
+		uint64_t firstSampleTime = _::readData( buffer );
 
         xSemaphoreGive( m_accessSemaphore );
 
-        const nonstd::span<uint16_t> values( buffer.data(), valuesRead );
-		nonstd::span<uint16_t>::const_iterator it = values.begin();
+        _::Buffer::const_iterator it = buffer.begin();
 		size_t nSamples = 0;
-		while( it < values.end() ) {
-            size_t blockSize = std::min<size_t>( std::distance( it, values.cend() ),
-												 _::SamplesGroupSize );
-			samples[nSamples] = process( nonstd::span<const uint16_t>( it, blockSize ) );
-            it += blockSize;
+		while( it < buffer.end() ) {
+			samples[nSamples] = process( nonstd::span<const uint16_t>( it, _::SamplesGroupSize ) );
+            it += _::SamplesGroupSize;
 			++nSamples;
-		}
-		
-		return nSamples;
+		}		
+		return firstSampleTime;
 	}
 
 	template <adc_channel_t Channel>
@@ -148,14 +149,11 @@ public:
 		size_t totalRead = 0;
 		uint32_t totalSum = 0;
 		for ( uint i=0; i<nBuffers; ++i ) {
-			size_t nRead = 0;
 			Samples samples;
-			while(nRead == 0) {
-				nRead = read( samples );
-			}
+			read( samples );
 
-			totalRead += nRead;
-			totalSum += std::accumulate( samples.begin(), samples.begin() + nRead, 0, 
+			totalRead += _::GroupedSamplesSize;
+			totalSum += std::accumulate( samples.begin(), samples.end(), 0, 
 					[] (size_t sum, const Sample& sample) {
 						return sum + sample.template get<Channel>();
 					});
