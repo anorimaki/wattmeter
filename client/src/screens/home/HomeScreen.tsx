@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { StyleSheet, View, Switch, Text } from 'react-native';
 import { ElectricalParametersChart } from 'components/charts/ElectricalParametersChart';
 import { WithEsp32ServiceProps, withEsp32Service } from 'esp32/ESp32ServiceContext';
-import { Sample } from 'esp32/Esp32Service';
+import { SamplesPackage, Sample } from 'esp32/SamplesPackage';
 import { ErrorDialog } from 'errors/ErrorDialog';
 
 
@@ -98,8 +98,22 @@ class HomeScreen extends Component<ComponentProps, Sate> {
         })
     }
 
-    private onReceive( samples: Sample[] ) {
+    private onReceive( samplesPackages: SamplesPackage[] ) {
         this.setState( (prevState, _) => {
+            let samples: Sample[] = []
+            for( let i = 0; i<samplesPackages.length; ++i ) {
+                let samplesPackage = samplesPackages[i]
+
+                let scaledSamples = samplesPackage.samples
+                    .map( sample => { 
+                        return {
+                            voltage: sample.voltage * samplesPackage.voltageScaleFactor,
+                            current: sample.current * samplesPackage.currentScaleFactor
+                        };
+                    });
+                samples.concat( scaledSamples )
+            }
+                
             let toRemove = (samples.length + prevState.samples.length) - MAX_SAMPLES_SHOWN 
             if ( toRemove < 0 ) {
                 toRemove = 0

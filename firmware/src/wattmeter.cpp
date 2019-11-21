@@ -40,9 +40,13 @@ uint16_t defaultZero() {
 
 
 void showInfo( void* ) {
-    for(;;)  {
+    while(!ota::inProgress) {
+TRACE_TIME_INTERVAL_BEGIN(update);
         display.update( calculatedMeter.get() );
+TRACE_TIME_INTERVAL_END(update);
     }
+    TRACE( "showInfo task finished" );
+    vTaskDelete(NULL);
 }
 
 
@@ -50,15 +54,26 @@ void readSamples( void* ) {
     meter::SampleBasedMeter::Measures sampledMeasures;
 
     sampledMeter.start();
+    std::pair<float, float> scaleFactors = sampledMeter.scaleFactors();
+    calculatedMeter.scaleFactors( scaleFactors );
 
-    for(;;) {
+    while(!ota::inProgress) {
+trace::traceTimeInterval("read"); 
         uint64_t time = sampledMeter.read( sampledMeasures );
 
-        webServer.send( sampledMeasures );
-        calculatedMeter.process( time, sampledMeasures );
+TRACE_TIME_INTERVAL_BEGIN(readOp);
+        webServer.send( time, scaleFactors, sampledMeasures );
+        if ( calculatedMeter.process( time, sampledMeasures ) ) {
+            if ( sampledMeter.autoRange() ) {
+                scaleFactors = sampledMeter.scaleFactors();
+                calculatedMeter.scaleFactors( scaleFactors );
+            }
+        }
+TRACE_TIME_INTERVAL_END(readOp);
     }
+    TRACE( "readSamples task finished" );
+    vTaskDelete(NULL);
 }
-
 
 TaskHandle_t readSamplesTask;
 void setup()
@@ -85,23 +100,23 @@ void setup()
     webServer.begin();
 
     TaskHandle_t readSamplesTask;
-    xTaskCreate( readSamples, "readSamples", 7168, NULL, 3, &readSamplesTask );
+    xTaskCreatePinnedToCore( readSamples, "readSamples", 7168, NULL, 1, &readSamplesTask, 1 );
 
     TaskHandle_t showInfoTask;
-    xTaskCreate( showInfo, "showInfo", 2048, NULL, 1, &showInfoTask );
+    xTaskCreatePinnedToCore( showInfo, "showInfo", 2048, NULL, 1, &showInfoTask, 0 );
 }
 
 
 void loop()
 {
 #if 0
-    trace::timeInterval( "loop" );
+    trace::traceTimeInterval( "loop" );
 
     UBaseType_t uxHighWaterMark = uxTaskGetStackHighWaterMark(readSamplesTask);
     printf( "Stack w: %u\n", uxHighWaterMark );
 #endif
 
-	ota::handle();
+    ota::handle();
 
 	if ( commands::isZerosCalibrationRequest() ) {
         sampledMeter.calibrateZeros();
@@ -110,5 +125,7 @@ void loop()
 	if ( commands::isFactorsCalibrationRequest() ) {
         sampledMeter.calibrateFactors();
 	}
+
+    vTaskDelay( 10 / portTICK_PERIOD_MS );
 }
 

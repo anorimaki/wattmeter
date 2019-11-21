@@ -17,7 +17,8 @@ public:
     ~Server();
 
     void begin();
-    void send( const meter::SampleBasedMeter::Measures& samples );
+    void send( uint64_t time, const std::pair<float, float>& scaleFactors,
+                const meter::SampleBasedMeter::Measures& samples );
 
 private:
     Server( const Server& ) = delete;

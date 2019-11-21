@@ -13,20 +13,20 @@ public:
 
     class Measure {
     public:
-        Measure(): m_voltage(NAN), m_current(NAN) {}
+        Measure(): m_voltage(0), m_current(0) {}
         Measure( float voltage, float current ): m_voltage(voltage), m_current(current) {}
 
-        float voltage() const {
+        int16_t voltage() const {
             return m_voltage;
         }
 
-        float current() const {
+        int16_t current() const {
             return m_current;
         }
 
     private:
-        float m_voltage;
-        float m_current;
+        int16_t m_voltage;
+        int16_t m_current;
     };
 
     typedef std::array<Measure, MeasuresSize> Measures; 
@@ -41,6 +41,10 @@ public:
         m_currentMeasurer.init(defaultZero);
     }
 
+    std::pair<float, float> scaleFactors() {
+        return std::make_pair( m_voltageMeasurer.scaleFactor(), m_currentMeasurer.scaleFactor() );
+    }
+
     void start() {
         m_sampler.start();
     }
@@ -49,7 +53,6 @@ public:
         Sampler::Samples samples;
         uint64_t time = m_sampler.read( samples );
         process( samples, result );
-        autoRange();
         return time;
     }
 
@@ -66,28 +69,30 @@ public:
         });
     }
 
-private:
-    void autoRange() {
+    bool autoRange() {
         VoltageMeter::AutoRangeAction voltageAutoRangeAction = m_voltageMeasurer.autoRangeAction();
         CurrentMeter::AutoRangeAction currentAutoRangeAction = m_currentMeasurer.autoRangeAction();
-        if ( voltageAutoRangeAction || currentAutoRangeAction ) {
-            m_sampler.pauseWhileAction( [&]() {
-                if ( voltageAutoRangeAction ) {
-                    voltageAutoRangeAction();
-                }
-                if ( currentAutoRangeAction ) {
-                    currentAutoRangeAction();
-                }
-            } ); 
+        if ( !voltageAutoRangeAction && !currentAutoRangeAction ) {
+            return false;
         }
+        m_sampler.pauseWhileAction( [&]() {
+            if ( voltageAutoRangeAction ) {
+                voltageAutoRangeAction();
+            }
+            if ( currentAutoRangeAction ) {
+                currentAutoRangeAction();
+            }
+        } ); 
+        return true;
     }
 
+private:
     void process( const Sampler::Samples& samples, Measures& result ) {
         typedef Sampler::Samples::value_type InputSample;
         std::transform( samples.begin(), samples.end(), result.begin(), 
             [&](const InputSample& inputSample) {
-                float voltage = m_voltageMeasurer.process( inputSample );
-                float current = m_currentMeasurer.process( inputSample );
+                int16_t voltage = m_voltageMeasurer.process( inputSample );
+                int16_t current = m_currentMeasurer.process( inputSample );
                 return Measure( voltage, current );
             });
     }

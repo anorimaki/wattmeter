@@ -5,7 +5,7 @@ namespace meter {
 
 namespace voltage {
 
-CalibrationData readClibrationData() {
+BaseMeter::CalibrationData readClibrationData() {
 	return {
 		.zeros = { 0, 0, 0 }
 	};

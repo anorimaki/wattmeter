@@ -12,10 +12,10 @@ std::string format( const __FlashStringHelper* format, ... );
 
 void log( const char* level, const char* file, int line, const char *msg );
 
-uint64_t timeInterval( const std::string& id );
+uint32_t timeInterval( const std::string& id );
 
 inline void traceTimeInterval( const std::string& id ) {
-    Serial.printf( "%s time interval %llu ms\n", id.c_str(), timeInterval(id) / 1000 );
+    Serial.printf( "%s time interval %u ms\n", id.c_str(), timeInterval(id) / 1000 );
 }
 
 }
@@ -44,5 +44,12 @@ inline void traceTimeInterval( const std::string& id ) {
             TRACE_ERROR("ESP error: %d", __err_rc);                 \
         }                                                           \
     } while(0);
+
+
+#define TRACE_TIME_INTERVAL_BEGIN(x) \
+        uint64_t _currentTime##x = esp_timer_get_time()
+
+#define TRACE_TIME_INTERVAL_END(x) \
+        TRACE( "Elapsed time for %s: %u us", #x, uint32_t(esp_timer_get_time() - _currentTime##x) )
 
 #endif /* INCLUDE_UTIL_TRACE_H_ */

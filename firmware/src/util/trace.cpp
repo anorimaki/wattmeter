@@ -53,7 +53,7 @@ void log( const char* level, const char* file, int line, const char* msg ) {
 
 std::map<std::string, uint64_t> lastTimes;
 
-uint64_t timeInterval( const std::string& id ) {
+uint32_t timeInterval( const std::string& id ) {
     uint64_t currentTime = esp_timer_get_time();
 
     std::map<std::string, uint64_t>::iterator it;
@@ -63,7 +63,7 @@ uint64_t timeInterval( const std::string& id ) {
         return currentTime;
     }
 
-    uint64_t interval = currentTime - it->second;
+    uint32_t interval = currentTime - it->second;
     it->second = currentTime;
     return interval;
 }

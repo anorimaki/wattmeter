@@ -9,6 +9,7 @@
 
 namespace meter {
 
+
 class Range {
 public:
 	// From Espressif ADC documentation: 0dB attenuation (ADC_ATTEN_DB_0) between 100 and 950mV
@@ -16,44 +17,45 @@ public:
 	static const uint16_t LOWEST_INPUT_VALUE = 100;
 
 public:
-	Range(): m_factor(0.0), m_zero(0), m_max(0.0), m_min(0.0) {}
-	
-	Range( uint16_t zero, float factor ): m_factor(factor), m_zero(zero) {
-		setZero( zero );
-	}
+    uint16_t zero() const { return m_zero; }
+    float scaleFactor() const { return m_scaleFactor; }
 
 	void setZero( uint16_t zero ) {
-		m_max = m_factor * (HIGHEST_INPUT_VALUE-zero);
-		m_min = m_factor * (LOWEST_INPUT_VALUE-zero);
-		TRACE( "Zero changed: %u -> %u [%f .. %f] (%f)", m_zero, zero, m_min, m_max, m_factor );
+		TRACE( "Zero changed: %u -> %u", m_zero, zero );
 		m_zero = zero;
 	}
 
-	void setFactor( float factor ) {
-		m_max = factor * (HIGHEST_INPUT_VALUE-m_zero);
-		m_min = factor * (LOWEST_INPUT_VALUE-m_zero);
-		TRACE( "Factor changed: %f -> %f [%f .. %f]", m_factor, factor, m_min, m_max );
-		m_factor = factor;
+	void setFactors( float factor, float underflowFactor ) {
+		TRACE( "Factor changed: %f -> %f", m_scaleFactor, factor );
+		m_scaleFactor = factor;
+        setUnderflowFactor( underflowFactor );
 	}
 
-	float zero() const { return m_zero; }
-	float max() const { return m_max; }
-	float min() const { return m_min; }
+    bool isUnderflow( uint16_t v ) const {
+        return (m_underflowMax > v) && (m_underflowMin < v);
+    }
 
-	bool contains( float value ) const {
-		return (value <= m_max) && (value >= m_min);
+	int16_t applyOffset( uint16_t value ) const {
+		return value - m_zero;
 	}
 
-	float convert( uint16_t value ) const {
-		int16_t raw = value - m_zero;
-		return float(raw) * m_factor;
-	}
+    static bool inRange( uint16_t value ) {
+        return  (LOWEST_INPUT_VALUE > value) && (HIGHEST_INPUT_VALUE < value);
+    }
 
 private:
-	float m_factor;
+    void setUnderflowFactor( float underflowScaleFactor ) {
+        float p = underflowScaleFactor / m_scaleFactor;
+        m_underflowMax = p * HIGHEST_INPUT_VALUE;
+        m_underflowMin = p * LOWEST_INPUT_VALUE;
+        TRACE( "Underflow limits: [%u .. %u]", m_underflowMin, m_underflowMax );
+    }
+
+private:
+	float m_scaleFactor;
 	uint16_t m_zero;
-	float m_max;
-	float m_min;
+	uint16_t m_underflowMax;
+	uint16_t m_underflowMin;
 };
 
 
@@ -64,12 +66,23 @@ private:
 
 	static const uint OverflowsThreshold = 2;
 	static const uint ResetOverflowsThreshold = 100;
-	static const uint ScoreThreshold = 3000;
+	static const uint UnderflowsThreshold = 3000;
 
 public:
-	Ranges() {}
-	Ranges( const Container& ranges ): 
-				m_ranges(ranges), m_active(0), m_overflows(0), m_autoRange(true) {}
+    template <typename C>
+    void setZeros( const C& zeros ) {
+        for( uint i = 0; i < N; ++i ) {
+            m_ranges[i].setZero( zeros[i] );
+        }
+    }
+
+    template <typename C>
+    void setScaleFactors( const C& scaleFactors ) {
+        for( uint i = 0; i < N-1; ++i ) {
+            m_ranges[i].setFactors( scaleFactors[i], scaleFactors[i+1] );
+        }
+        m_ranges[N-1].setFactors( scaleFactors[N-1], 0.0 );
+    }
 
     size_t active() const {
 		return m_active;
@@ -79,17 +92,18 @@ public:
 		if ( (m_active > 0) && (m_overflows > OverflowsThreshold) ) {
 			return m_active - 1;
 		}
-
-		for ( size_t i=N-1; i > m_active; --i ) {
-			if (m_scores[i] > ScoreThreshold) {
-				return i;
-			}
-		}
+        if ( m_underflows > UnderflowsThreshold ) {
+            return m_active + 1;
+        }
 		return m_active;
 	}
 
     bool autoRange() const {
         return m_autoRange;
+    }
+
+    float scaleFactor() const {
+        return m_ranges[m_active].scaleFactor();
     }
 
     void setAutoRange( bool value ) {
@@ -99,25 +113,25 @@ public:
 	void setActive( size_t position ) {
 		m_active = position;
 		m_overflows = 0;
-		m_scores.fill(0);
+		m_underflows = 0;
 	}
 
-	float process( uint16_t value ) {
-		float volts = m_ranges[m_active].convert(value);
+	int16_t process( uint16_t value ) {
+		int16_t volts = m_ranges[m_active].applyOffset(value);
         if ( m_autoRange ) {
             updateScores( volts );
         }
         return volts;
     }
 
-	Range& operator[](size_t index) {
+	const Range& operator[](size_t index) const {
 		return m_ranges[index];
-	}
-	
+	} 
+
 private:
-    void updateScores( float volts ) {
+    void updateScores( uint16_t volts ) {
 		// Check for overflow. active range should be decremented
-		if ( m_ranges[m_active].contains( volts ) ) {
+		if ( Range::inRange( volts ) ) {
 			if ( (m_overflows > 0) && (++m_withoutOverflows > ResetOverflowsThreshold) ) {
 				m_overflows = 0;
 			}
@@ -127,21 +141,19 @@ private:
 			m_withoutOverflows = 0;
 		}
 
-		// Check if there is more specific range. active range should be incremented
-		for ( size_t i=m_active+1; i<N; ++i ) {
-			if ( m_ranges[i].contains( volts ) ) {
-				++m_scores[i];
-			}
-			else {
-				m_scores[i] = 0;
-			}
-		}
+        if ( m_ranges[m_active].isUnderflow( volts ) ) {
+            ++m_underflows;
+        }
+        else {
+            m_underflows = 0;
+        }
 	}
 
 private:
-	/* const */ Container m_ranges;
+	Container m_ranges;
 	size_t m_active;
 	uint m_overflows;
+    uint m_underflows;
 	uint m_withoutOverflows;
     bool m_autoRange;
 	std::array<uint, N> m_scores;

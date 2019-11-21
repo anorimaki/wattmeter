@@ -2,24 +2,9 @@
 #include "util/trace.h"
 #include "driver/i2c.h"
 #include "Adafruit_GFX.h"
-#include "font/dialog6pt.h"
-#include "font/dialog7pt.h"
 #include "font/dialog8pt.h"
 #include "font/dialog14pt.h"
-#include "font/dialog15pt.h"
-#include "font/dialog16pt.h"
 #include "font/dialog17pt.h"
-#include "font/sansserif6pt.h"
-#include "font/roboto10pt.h"
-#include "font/robotocondensed8pt.h"
-#include "font/robotocondensed10pt.h"
-#include "font/robotocondensed13pt.h"
-#include "font/robotocondensed15pt.h"
-#include "Fonts/FreeSans9pt7b.h"
-#include "Fonts/Tiny3x3a2pt7b.h"
-#include "Fonts/Picopixel.h"
-#include "Fonts/Org_01.h"
-#include "Fonts/TomThumb.h"
 
 
 
@@ -102,6 +87,12 @@ void Display::mainHeader( uint32_t signalFrequency, uint32_t sampleRate ) {
 
     m_lcd.setFont(&Dialog_plain_8);
     right( m_lcd, 8, String(sampleRate, 10) );
+
+    static bool displayIndicator=false;
+    if ( displayIndicator ) {
+        m_lcd.drawRect( ScreenWidth-3, 13, 2, 2, SSD1306::White );
+    }
+    displayIndicator = !displayIndicator;
 }
 
 

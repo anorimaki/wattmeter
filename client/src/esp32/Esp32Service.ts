@@ -1,10 +1,8 @@
-export interface Sample {
-    voltage: number
-    current: number
-}
+import { SamplesPackage } from "esp32/SamplesPackage"
+
 
 export type ConnectionHandler = (connected: boolean) => void
-export type ReceiveHandler = (samples: Sample[]) => void
+export type ReceiveHandler = (samples: SamplesPackage[]) => void
 export type ErrorHandler = (error: Error) => void
 
 export class Esp32ConnectionError extends Error {
@@ -14,6 +12,11 @@ export class Esp32ConnectionError extends Error {
         Object.setPrototypeOf(this, new.target.prototype); // restore prototype chain
     }
 }
+
+
+const SAMPLES_SIZE = 1024 / 16;
+const ENCODED_SAMPLES_SIZE = SAMPLES_SIZE * 4;
+const ENCODED_SAMPLES_PACKAGE_SIZE = 8 + 4 + 4 + ENCODED_SAMPLES_SIZE;
 
 export class Esp32Service {
     private socket?: WebSocket
@@ -68,41 +71,41 @@ export class Esp32Service {
     private receiveHandler( _: WebSocket, ev: MessageEvent ) {
         try {
             let message = ev.data;
-            let values = new DataView(message);
-            let samples = []
-            for( var i=0; i<values.byteLength; i=i+8 ) {
-                samples.push({
-                    voltage: values.getFloat32(i, true),
-                    current: values.getFloat32(i+4, true)
-                })
-            }
+            let data = new DataView(message);
+            let samplesPackage: SamplesPackage[] = [];
 
-         /*   var values = new Int16Array(message);
-            let samples = values.reduce( (result, value, index, values) => {
-                    if ( (index % 2) === 0 ) {
-                        result.push( {
-                            voltage: value,
-                            current: values[index+1]
-                        } )
-                    }
-                    return result
-                }, new Array<Sample>() ) */
-/*            
-            let messageObj = JSON.parse( message )
-            let samples = messageObj.map( (item: any) => {
-                if ( (item.v === undefined) || (item.c === undefined) ) {
-                    throw new Esp32ConnectionError("Invalid data received")
-                }
-                return {
-                    voltage: item.v,
-                    current: item.c
-                }
-            });
-*/
-            this.onReceive( samples )
+            let offset = 0
+            for( var i=0; i<3; ++i ) {
+                samplesPackage.push( this.decodePackage( data, offset ) )
+                offset += ENCODED_SAMPLES_PACKAGE_SIZE;
+            }
+            this.onReceive( samplesPackage )
         }
         catch(error) {
             this.onError( error )
+        }
+    }
+
+    private decodePackage( data: DataView, offset: number ): SamplesPackage {
+        let time = data.getBigUint64(offset, true);
+        let voltageScaleFactor = data.getFloat32(offset+8, true);
+        let currentScaleFactor = data.getFloat32(offset+12, true);
+
+        let samples = []
+        offset += (8 + 4 + 4);
+        for ( var i=0; i<SAMPLES_SIZE; ++i ) {
+            samples.push({
+                voltage: data.getInt16(offset, true),
+                current: data.getInt16(offset+2, true)
+            });
+            offset += 4;
+        }
+        
+        return {
+            time: Number(time),
+            voltageScaleFactor,
+            currentScaleFactor,
+            samples
         }
     }
 }

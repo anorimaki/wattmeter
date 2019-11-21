@@ -11,12 +11,11 @@ namespace meter {
 namespace voltage {
 
 static const adc_channel_t INPUT_CHANNEL = ADC_CHANNEL_0;
+static const uint N_RANGES = 3;
 
-struct CalibrationData {
-	std::array<uint16_t, 3> zeros;
-};
+typedef SingleSampleBasedMeter<voltage::INPUT_CHANNEL, voltage::N_RANGES> BaseMeter;
 
-CalibrationData readClibrationData();
+BaseMeter::CalibrationData readClibrationData();
 
 void init();
 void setGPIORange( size_t range );
@@ -24,7 +23,7 @@ void setGPIORange( size_t range );
 }
 
 
-class VoltageMeter: public SingleSampleBasedMeter<voltage::INPUT_CHANNEL, 3> {
+class VoltageMeter: public voltage::BaseMeter {
 private:
 #if 0
 	static const uint RH = 1000000;
@@ -42,43 +41,35 @@ private:
 	static const uint32_t RL_2 = 11830;
 	static const uint32_t RL_3 = 66600;
 #endif
-    typedef SingleSampleBasedMeter<voltage::INPUT_CHANNEL, 3> Base;
 	
 public:
-	VoltageMeter(): Base(voltage::setGPIORange) {
+	VoltageMeter(): voltage::BaseMeter(voltage::setGPIORange) {
 		voltage::init();
 	}
 
 	void init( uint16_t defaultZero ) {
-		voltage::CalibrationData calibrationData = voltage::readClibrationData();
-		typedef typename Base::RangesInitializer RangesInitializer;
-
-		RangesInitializer ranges = (calibrationData.zeros[0]==0) ? 
-				(RangesInitializer){ 
-					range( defaultZero, RL_1 ), 
-					range( defaultZero, RL_2+RL_1 ), 
-					range( defaultZero, RL_3+RL_2+RL_1 ) } :
-				(RangesInitializer){ 
-					range( calibrationData.zeros[0], RL_1 ), 
-					range( calibrationData.zeros[1], RL_2+RL_1 ), 
-					range( calibrationData.zeros[2], RL_3+RL_2+RL_1 ) };
-		Base::initRanges( ranges );
+        const std::array<float, RangesSize> scaleFactors = {
+                                        scaleFactorForR(RL_1), 
+                                        scaleFactorForR(RL_2+RL_1), 
+                                        scaleFactorForR(RL_3+RL_2+RL_1) };
+        voltage::BaseMeter::init( defaultZero, voltage::readClibrationData, scaleFactors );
 	}
 
 	void calibrateFactors() {
-		std::array<uint16_t, 3> fiveVoltsValue;
-		Base::sampleAllRanges( fiveVoltsValue );
+		std::array<uint16_t, RangesSize> fiveVoltsValue;
+		sampleAllRanges( fiveVoltsValue );
 
-		for( int i=0; i<3; ++i ) {
-			uint16_t fiveVoltValue = fiveVoltsValue[i] - Base::m_ranges[i].zero();
-			Base::m_ranges[i].setFactor( 5000.0 / float(fiveVoltValue) );
-		}
+        std::array<float, RangesSize> scaleFactors;
+        for( uint i = 0; i<RangesSize; ++i ) {
+            scaleFactors[i] = 5000.0 / float(m_ranges[i].applyOffset(fiveVoltsValue[i]));
+        }
+        m_ranges.setScaleFactors(scaleFactors);
 	}
 
 private:
-	Range range( uint16_t zero, uint rl ) {
-		return Range( zero, float(RH+rl)/float(rl) );
-	}
+    static const float scaleFactorForR(uint rl ) {
+        return (float(RH+rl)/float(rl)) / 1000.0;
+    }
 };
 
 

@@ -16,29 +16,29 @@ public:
     }
 
     void reset() {
-        m_min = std::numeric_limits<float>::max();
-        m_max = std::numeric_limits<float>::min();
+        m_min = std::numeric_limits<int16_t>::max();
+        m_max = std::numeric_limits<int16_t>::min();
         m_sum = 0;
         m_squaredSum = 0;
     }
 
-    float sum() const {
+    int64_t sum() const {
         return m_sum;
     }
 
-    float squaredSum() const {
+    int64_t squaredSum() const {
         return m_squaredSum;
     }
 
-    float min() const {
+    int16_t min() const {
         return m_min;
     }
 
-    float max() const {
+    int16_t max() const {
         return m_max;
     }
 
-    void process( float value ) {
+    void process( int16_t value ) {
         if ( value > m_max ) {
             m_max = value;
         }
@@ -52,18 +52,21 @@ public:
     }
 
 private:
-    float m_sum;
-    float m_squaredSum;
-    float m_min;
-    float m_max;
+    int64_t m_sum;
+    int64_t m_squaredSum;
+    int16_t m_min;
+    int16_t m_max;
 };
 
 
 class VariableMeasure {
 public:
-    VariableMeasure(): m_min(0.0), m_max(0.0), m_mean(0.0), m_rms(0.0) {}
-    VariableMeasure( float min, float max, float mean, float rms ): 
-        m_min(min), m_max(max), m_mean(mean), m_rms(rms) {}
+    VariableMeasure() {}
+    VariableMeasure( float scaleFactor, int16_t min, int16_t max, int16_t mean, float rms ): 
+            m_min(min*scaleFactor), 
+            m_max(max*scaleFactor), 
+            m_mean(mean*scaleFactor),
+            m_rms(rms*scaleFactor) {}
 
     float min() const {
         return m_min;
@@ -91,8 +94,8 @@ private:
 
 class PowerMeasure {
 public:
-    PowerMeasure(): m_active(0.0), m_apparent(0.0), m_reactive(0.0), m_factor(0.0) {}
-    PowerMeasure( float active, float apparent );
+    PowerMeasure() {}
+    PowerMeasure( float scaleFactor, float active, float apparent );
 
     // P = sum[i=1..N]( u(i) * i(i) ) / N
     float active() const {
@@ -124,7 +127,7 @@ private:
 
 class CalculatedMeasures {
 public:
-    CalculatedMeasures(): m_sampleRate(0), m_signalFrequency(0) {}
+    CalculatedMeasures() {}
     CalculatedMeasures( uint32_t sampleRate, 
                         uint32_t signalFrequency,
                         const VariableMeasure& voltage,
@@ -176,20 +179,24 @@ public:
     CalculatorBasedMeter();
     ~CalculatorBasedMeter();
 
+    void scaleFactors( const std::pair<float, float>& factors );
+    bool process( uint64_t time, const SampleBasedMeter::Measures& samples );
+
     Measures get();
-    void process( uint64_t time, const SampleBasedMeter::Measures& samples );
 
 private:
-    void reset();
+    void reset();    
     void fetch();
     std::pair<uint32_t, uint32_t> fetchTimes();
     
 private:
+    float m_voltageScaleFactor;
+    float m_currentScaleFactor;
     QueueHandle_t m_valueQueue;
     VariableProcessor m_voltage;
     VariableProcessor m_current;
-    float m_activePowerSum;
-    float m_lastVoltage;
+    int32_t m_activePowerSum;
+    int16_t m_lastVoltage;
     size_t m_processedSamples;
     size_t m_sampledPeriods;
     int64_t m_lastTimeFetched;

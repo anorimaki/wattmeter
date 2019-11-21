@@ -47,7 +47,7 @@ env.Append(
 
 def embed_files(files):
     for f in files:
-        input_file = join("$PROJECTLIBDEPS_DIR", "$PIOENV", "WiFiManager/src", f)
+        input_file = join("$PROJECT_LIBDEPS_DIR", "$PIOENV", "WiFiManager/src", f)
         output_file = join("$BUILD_DIR", basename(f) + ".raw.o")
         file_target = env.RawToObj(output_file, input_file)
         env.Depends("$PIOMAINPROG", file_target)

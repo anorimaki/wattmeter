@@ -4,7 +4,7 @@ namespace meter {
 
 namespace current {
 
-CalibrationData readClibrationData() {
+BaseMeter::CalibrationData readClibrationData() {
 	return {
 		.zeros = { 0, 0, 0 }
 	};

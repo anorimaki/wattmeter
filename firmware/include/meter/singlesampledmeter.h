@@ -29,14 +29,13 @@ private:
 	
 protected:
 	typedef std::function<void(size_t)> GPIORangeSetter;
-	typedef std::array<Range, N_RANGES> RangesInitializer;
-
-	struct CalibrationData {
-		std::array<uint16_t, N_RANGES> zeros;
-	};
-	typedef std::function<CalibrationData()> CalibrationZerosReader;
 
 public:
+    struct CalibrationData {
+		std::array<uint16_t, N_RANGES> zeros;
+	};
+	typedef std::function<CalibrationData()> CalibrationReader;
+
     typedef std::function<void()> AutoRangeAction;
 	
 public:
@@ -45,16 +44,24 @@ public:
 	static const size_t AutoRange = N_RANGES;
 
 public:
-	SingleSampleBasedMeter( GPIORangeSetter gpioRangeSetter ): 
-		m_gpioRangeSetter(gpioRangeSetter) {}
+	SingleSampleBasedMeter( GPIORangeSetter gpioRangeSetter ): m_gpioRangeSetter(gpioRangeSetter) {
+        changeRange(0);
+    }
 
-	void initRanges( const RangesInitializer& ranges ) {
-		m_ranges = Ranges( ranges );
-		changeRange(0);		//Start with the widest range
-	}
+    void init( uint16_t defaultZero, CalibrationReader calibrationReader,
+                std::array<float, N_RANGES> scaleFactors ) {
+		CalibrationData calibrationData = calibrationReader();
+
+        if ( calibrationData.zeros[0]==0 ) {
+            calibrationData.zeros.fill(defaultZero);
+        }
+        m_ranges.setZeros( calibrationData.zeros );
+
+        m_ranges.setScaleFactors(scaleFactors);
+	} 
 
     template <typename Sample>
-	float process( const Sample& sample ) {
+	int16_t process( const Sample& sample ) {
         uint16_t value = sample.template get<Channel>();
 		return m_ranges.process( value );
 	}
@@ -62,10 +69,12 @@ public:
 	void calibrateZeros() {
 		std::array<uint16_t, N_RANGES> zeros;
 		sampleAllRanges( zeros );
-		for( int i=0; i<N_RANGES; ++i ) {
-			m_ranges[i].setZero( zeros[i] );
-		}
+		m_ranges.setZeros( zeros );
 	}
+
+    float scaleFactor() const {
+        return m_ranges.scaleFactor();
+    }
 
 	void setRange( size_t newRange ) {
         m_ranges.setAutoRange( newRange == AutoRange );
@@ -82,7 +91,7 @@ public:
         size_t bestRange = m_ranges.best();
         return (bestRange == m_ranges.active()) ? 
                 AutoRangeAction() :
-                AutoRangeAction( std::bind( &ThisType::changeRange, this, bestRange ) );
+                std::bind( &ThisType::changeRange, this, bestRange );
     }
 
 protected:
