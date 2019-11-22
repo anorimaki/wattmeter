@@ -9,9 +9,11 @@
 
 namespace meter {
 
-class VariableProcessor {
+namespace impl {
+
+class VariableAccumulator {
 public:
-    VariableProcessor() {
+    VariableAccumulator() {
         reset();
     }
 
@@ -38,17 +40,18 @@ public:
         return m_max;
     }
 
-    void process( int16_t value ) {
-        if ( value > m_max ) {
-            m_max = value;
-        }
-
-        if ( value < m_min ) {
-            m_min = value;
-        }
-
+    void accumulate( int16_t value ) {
+        m_max = std::max( m_max, value );
+        m_min = std::min( m_min, value );
         m_sum += value;
         m_squaredSum += (value * value);
+    }
+
+    void accumulate( const VariableAccumulator& other ) {
+        m_max = std::max( m_max, other.max() );
+        m_min = std::min( m_min, other.min() );
+        m_sum += other.sum();
+        m_squaredSum += other.squaredSum();
     }
 
 private:
@@ -57,6 +60,51 @@ private:
     int16_t m_min;
     int16_t m_max;
 };
+
+
+class Accumulator {
+public:
+    Accumulator() {
+        reset();
+    }
+
+    const VariableAccumulator& voltage() const {
+        return m_voltage;
+    }
+
+    const VariableAccumulator& current() const {
+        return m_current;
+    }
+
+    int64_t activePowerSum() const {
+        return m_activePowerSum;
+    }
+
+    void accumulate( const Accumulator& other ) {
+        m_voltage.accumulate( other.voltage() );
+        m_current.accumulate( other.current() );
+        m_activePowerSum += other.activePowerSum();
+    }
+
+    void accumulate( int16_t voltage, int16_t current ) {
+        m_voltage.accumulate( voltage );
+        m_current.accumulate( current );
+        m_activePowerSum += (voltage * current);
+    }
+
+    void reset() {
+        m_voltage.reset();
+        m_current.reset();
+        m_activePowerSum = 0;
+    }
+
+private:
+    VariableAccumulator m_voltage;
+    VariableAccumulator m_current;
+    int64_t m_activePowerSum;
+};
+
+}
 
 
 class VariableMeasure {
@@ -193,9 +241,8 @@ private:
     float m_voltageScaleFactor;
     float m_currentScaleFactor;
     QueueHandle_t m_valueQueue;
-    VariableProcessor m_voltage;
-    VariableProcessor m_current;
-    int32_t m_activePowerSum;
+    impl::Accumulator m_periodAccumulator;
+    impl::Accumulator m_accumulator;
     int16_t m_lastVoltage;
     size_t m_processedSamples;
     size_t m_sampledPeriods;

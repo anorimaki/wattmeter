@@ -41,9 +41,7 @@ uint16_t defaultZero() {
 
 void showInfo( void* ) {
     while(!ota::inProgress) {
-TRACE_TIME_INTERVAL_BEGIN(update);
         display.update( calculatedMeter.get() );
-TRACE_TIME_INTERVAL_END(update);
     }
     TRACE( "showInfo task finished" );
     vTaskDelete(NULL);
@@ -58,10 +56,8 @@ void readSamples( void* ) {
     calculatedMeter.scaleFactors( scaleFactors );
 
     while(!ota::inProgress) {
-trace::traceTimeInterval("read"); 
         uint64_t time = sampledMeter.read( sampledMeasures );
-
-TRACE_TIME_INTERVAL_BEGIN(readOp);
+//TRACE_TIME_INTERVAL_BEGIN(readOp);
         webServer.send( time, scaleFactors, sampledMeasures );
         if ( calculatedMeter.process( time, sampledMeasures ) ) {
             if ( sampledMeter.autoRange() ) {
@@ -69,7 +65,7 @@ TRACE_TIME_INTERVAL_BEGIN(readOp);
                 calculatedMeter.scaleFactors( scaleFactors );
             }
         }
-TRACE_TIME_INTERVAL_END(readOp);
+//TRACE_TIME_INTERVAL_END(readOp);  
     }
     TRACE( "readSamples task finished" );
     vTaskDelete(NULL);

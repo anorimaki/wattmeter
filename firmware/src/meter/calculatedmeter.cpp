@@ -10,12 +10,9 @@ PowerMeasure::PowerMeasure( float scaleFactor, float active, float apparent ) {
     m_factor = active / apparent;
 }
 
+static const size_t MeasuresPerSecond = _::SampleRate / _::SamplesGroupSize;
+static const size_t SamplesInChunk = MeasuresPerSecond * 3 ;
 
-inline bool endPeriod( float lastValue, float currentValue ) {
-    return (lastValue > 0) && (currentValue <= 0);
-}
-
-static const size_t SamplesInChunk = _::SampleRate * 3 / _::SamplesGroupSize ;
 
 CalculatorBasedMeter::CalculatorBasedMeter() {
     m_valueQueue = xQueueCreate( 1, sizeof(Measures) );
@@ -37,6 +34,10 @@ void CalculatorBasedMeter::scaleFactors( const std::pair<float, float>& factors 
     reset();
 }
 
+
+
+
+
 bool CalculatorBasedMeter::process( uint64_t time, const SampleBasedMeter::Measures& samples ) {
     typedef SampleBasedMeter::Measure SampledMeasure;
     bool chunkCompleted = false;
@@ -44,25 +45,19 @@ bool CalculatorBasedMeter::process( uint64_t time, const SampleBasedMeter::Measu
                 [this, &chunkCompleted]( const SampledMeasure& sampledMeasure ) {
         int16_t voltage = sampledMeasure.voltage();
         int16_t current = sampledMeasure.current();
-        m_voltage.process(voltage);
-        m_current.process(current);
-        m_activePowerSum += (voltage * current);
-        ++m_processedSamples;
+        m_periodAccumulator.accumulate( voltage, current );        
 
-        bool isReadyToFetch = (m_processedSamples >= SamplesInChunk);
-        bool isDCVoltage = (m_sampledPeriods == 0);
-        if ( isReadyToFetch && isDCVoltage ) {
+        if ( (m_lastVoltage > 0) && (voltage <= 0) ) {
+            ++m_sampledPeriods;
+            m_accumulator.accumulate( m_periodAccumulator );
+            m_periodAccumulator.reset();
+        }
+        m_lastVoltage = voltage;
+
+        if ( ++m_processedSamples > SamplesInChunk ) {
             fetch();
             chunkCompleted = true;
         }
-        else if ( endPeriod( m_lastVoltage, voltage ) ) {
-            ++m_sampledPeriods;
-            if ( isReadyToFetch ) {
-                fetch();
-                chunkCompleted = true;
-            }
-        }
-        m_lastVoltage = voltage;
     });
 
     return chunkCompleted;
@@ -70,10 +65,9 @@ bool CalculatorBasedMeter::process( uint64_t time, const SampleBasedMeter::Measu
 
 
 void CalculatorBasedMeter::reset() {
-    m_voltage.reset();
-    m_current.reset();
+    m_periodAccumulator.reset();
+    m_accumulator.reset();
     
-    m_activePowerSum = 0;
     m_lastVoltage = 0;
     m_processedSamples = 0;
     m_sampledPeriods = 0;
@@ -81,16 +75,26 @@ void CalculatorBasedMeter::reset() {
 
 
 void CalculatorBasedMeter::fetch() {
-    float unscaledVoltageRms = std::sqrt(m_voltage.squaredSum() / m_processedSamples);
-    VariableMeasure voltage( m_voltageScaleFactor, m_voltage.min(), m_voltage.max(), 
-                            m_voltage.sum() / m_processedSamples, unscaledVoltageRms );
+    if ( m_sampledPeriods == 0 ) {
+        m_accumulator.accumulate( m_periodAccumulator );
+        m_periodAccumulator.reset();
+    }
 
-    float unscaledCurrentRms = std::sqrt(m_current.squaredSum() / m_processedSamples);
-    VariableMeasure current( m_currentScaleFactor, m_current.min(), m_current.max(), 
-                            m_current.sum() / m_processedSamples, unscaledCurrentRms );
+    const impl::VariableAccumulator& voltageAccum = m_accumulator.voltage();
+    float unscaledVoltageRms = std::sqrt(voltageAccum.squaredSum() / m_processedSamples);
+
+    VariableMeasure voltage( m_voltageScaleFactor, voltageAccum.min(), voltageAccum.max(), 
+                            voltageAccum.sum() / m_processedSamples, 
+                            unscaledVoltageRms );
+
+    const impl::VariableAccumulator& currentAccum =  m_accumulator.current();
+    float unscaledCurrentRms = std::sqrt(currentAccum.squaredSum() / m_processedSamples);
+    VariableMeasure current( m_currentScaleFactor, currentAccum.min(), currentAccum.max(), 
+                            currentAccum.sum() / m_processedSamples, 
+                            unscaledCurrentRms );
 
     PowerMeasure power = PowerMeasure( m_voltageScaleFactor * m_currentScaleFactor,
-                                        m_activePowerSum / m_processedSamples, 
+                                        m_accumulator.activePowerSum() / m_processedSamples, 
                                         unscaledVoltageRms * unscaledCurrentRms ); 
 
     int32_t sampleRate, signalFrequency;

@@ -22,9 +22,9 @@ const size_t BufferCount = 2;
 const size_t GroupedSamplesSize = BufferSize / SamplesGroupSize;
 
 // - Sample rate for various channels: SampleRate / NumChannels. For 2 channels (V and I):
-//   22000 samples/s (period = 45.45 us). A 50Hz signal is sampled 440 times per cycle.
+//      22000 samples/s (period = 45.45 us). A 50Hz signal is sampled 440 times per cycle.
 // - Sample rate after grouping: SampleRate / SamplesGroupSize = 2750 values/s (period = 36.36 us).
-//   For a 50Hz signal, we have 55 values per cycle for V and I. 
+//      For a 50Hz signal, we have 55 values per cycle for V and I. 
 // - Each channel value of a group is the average of SamplesGroupSize / NumChannels values.
 // - Buffer sample time: BufferSize / SampleRate = 23.272 ms. It's nearly a period of
 //   a 50Hz sinusoidal (20ms).

@@ -3,6 +3,8 @@
 
 namespace ota {
 
+extern volatile bool inProgress;
+
 void init( const char* hostName );
 void handle();
 

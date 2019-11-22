@@ -111,7 +111,7 @@ class HomeScreen extends Component<ComponentProps, Sate> {
                             current: sample.current * samplesPackage.currentScaleFactor
                         };
                     });
-                samples.concat( scaledSamples )
+                samples.push( ...scaledSamples )
             }
                 
             let toRemove = (samples.length + prevState.samples.length) - MAX_SAMPLES_SHOWN 

@@ -7,6 +7,9 @@ import settingsActions from 'settings/actions'
 import { Esp32Service } from 'esp32/Esp32Service';
 import { Esp32ServiceProvider } from 'esp32/ESp32ServiceContext';
 
+const mapDispatchToProps = {
+    setSettings: settingsActions.set
+}
 
 type Props = 
     ReturnType<typeof mapStateToProps> &
@@ -38,10 +41,6 @@ function mapStateToProps( state: RootState ) {
     return {
         settings: state.settings.value
     }
-}
-
-const mapDispatchToProps = {
-    setSettings: settingsActions.set
 }
 
 const ConnectedAppComponent = connect(mapStateToProps, mapDispatchToProps)(AppComponent)
