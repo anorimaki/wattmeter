@@ -4,12 +4,6 @@ namespace meter {
 
 namespace current {
 
-BaseMeter::CalibrationData readClibrationData() {
-	return {
-		.zeros = { 0, 0, 0 }
-	};
-}
-
 static const std::array<gpio_num_t, N_RANGES> Pins = { GPIO_NUM_5, GPIO_NUM_18, GPIO_NUM_19 };
 
 void init() {

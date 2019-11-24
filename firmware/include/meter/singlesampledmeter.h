@@ -6,6 +6,8 @@
 #include "util/trace.h"
 
 #include "driver/adc.h"
+#include "nvs_flash.h"
+#include "nvs.h"
 
 #include <cstdint>
 #include <cstddef>
@@ -26,16 +28,14 @@ private:
     typedef SingleSampleBasedMeter<Channel, N_RANGES> ThisType;
 	typedef meter::Ranges<N_RANGES> Ranges;
 	typedef Sampler<Channel> CalibrationSampler;
+    struct CalibrationData {
+        std::array<uint16_t, N_RANGES> zeros;
+    };
 	
 protected:
 	typedef std::function<void(size_t)> GPIORangeSetter;
 
 public:
-    struct CalibrationData {
-		std::array<uint16_t, N_RANGES> zeros;
-	};
-	typedef std::function<CalibrationData()> CalibrationReader;
-
     typedef std::function<void()> AutoRangeAction;
 	
 public:
@@ -44,19 +44,19 @@ public:
 	static const size_t AutoRange = N_RANGES;
 
 public:
-	SingleSampleBasedMeter( GPIORangeSetter gpioRangeSetter ): m_gpioRangeSetter(gpioRangeSetter) {
+	SingleSampleBasedMeter( GPIORangeSetter gpioRangeSetter, const char* calibrationStore ): 
+                m_gpioRangeSetter(gpioRangeSetter), m_calibrationStoreName(calibrationStore) {
         changeRange(0);
+        m_ranges.setAutoRange(true);
     }
 
-    void init( uint16_t defaultZero, CalibrationReader calibrationReader,
-                std::array<float, N_RANGES> scaleFactors ) {
-		CalibrationData calibrationData = calibrationReader();
-
+    void init( uint16_t defaultZero, const std::array<float, N_RANGES>& scaleFactors ) {
+		CalibrationData calibrationData = loadCalibration();
         if ( calibrationData.zeros[0]==0 ) {
             calibrationData.zeros.fill(defaultZero);
         }
-        m_ranges.setZeros( calibrationData.zeros );
 
+        m_ranges.setZeros( calibrationData.zeros );
         m_ranges.setScaleFactors(scaleFactors);
 	} 
 
@@ -70,6 +70,7 @@ public:
 		std::array<uint16_t, N_RANGES> zeros;
 		sampleAllRanges( zeros );
 		m_ranges.setZeros( zeros );
+        saveZerosCalibration( zeros );
 	}
 
     float scaleFactor() const {
@@ -98,25 +99,15 @@ protected:
     void changeRange( size_t rangeIndx ) {
         m_ranges.setActive(rangeIndx);
 		m_gpioRangeSetter(rangeIndx);
-		TRACE("Range changed to: %d", rangeIndx);
+		TRACE("%s range changed to: %d", m_calibrationStoreName, rangeIndx);
     }
 
 	void sampleAllRanges( std::array<uint16_t, N_RANGES>& out ) {
 		for( size_t i=0; i<N_RANGES; ++i ) {
 			changeRange(i);
 			out[i] = takeSample();
+            TRACE("%s range %d calibration: %u", m_calibrationStoreName, i, out[i]);
 		}
-
-#if 1
-		std::string buf;
-		for ( int i=0; i<N_RANGES; ++i ) {
-			char curr[128];
-			std::sprintf(curr, "%u", out[i]);
-			buf.append( curr);
-			buf.append( ", " );
-		}
-		TRACE("Calibration: %s", buf.c_str());
-#endif
 	}
 
 	uint16_t takeSample() {
@@ -126,12 +117,38 @@ protected:
 		return ret;
 	}
 
+private:
+    CalibrationData loadCalibration() {
+        CalibrationData ret;
+
+        nvs_handle handle;
+        TRACE_ESP_ERROR_CHECK(nvs_open("wattmeter", NVS_READONLY, &handle));
+        size_t size = sizeof(uint16_t)*N_RANGES;
+        esp_err_t err = nvs_get_blob(handle, m_calibrationStoreName, ret.zeros.data(), &size);
+	    if ( err != ESP_OK ) {
+		    ret.zeros.fill(0);
+	    }
+        nvs_close(handle);
+
+        return ret;
+    }
+
+    void saveZerosCalibration( const std::array<uint16_t, N_RANGES>& zeros ) {
+        nvs_handle handle;
+        TRACE_ESP_ERROR_CHECK(nvs_open("wattmeter", NVS_READWRITE, &handle));
+        TRACE_ESP_ERROR_CHECK(nvs_set_blob(handle, m_calibrationStoreName, zeros.data(),
+                                        sizeof(uint16_t)*N_RANGES ) );
+	    TRACE_ESP_ERROR_CHECK(nvs_commit(handle));
+        nvs_close(handle);
+    }
+
 protected:
 	Ranges m_ranges;
 
 private:
 	CalibrationSampler m_calibrationSampler;
 	GPIORangeSetter m_gpioRangeSetter;
+    const char* m_calibrationStoreName;
 };
 
 }

@@ -15,8 +15,6 @@ static const uint N_RANGES = 3;
 
 typedef SingleSampleBasedMeter<INPUT_CHANNEL, N_RANGES> BaseMeter;
 
-BaseMeter::CalibrationData readClibrationData();
-
 void setGPIORange( size_t range );
 
 void init();
@@ -41,7 +39,7 @@ private:
 	static constexpr float AMPLIFIER_GAIN = 1.0 + (AMPLIFIER_R_FB / AMPLIFIER_R_IN);
 	
 public:
-	CurrentMeter(): current::BaseMeter(current::setGPIORange) {
+	CurrentMeter(): current::BaseMeter(current::setGPIORange, "current") {
 		current::init();
 	}
 
@@ -57,7 +55,7 @@ public:
                                         0.0000116, 
                                         scaleFactorForR(R3+R2+R1) };
 #endif
-        current::BaseMeter::init( defaultZero, current::readClibrationData, scaleFactors );
+        current::BaseMeter::init( defaultZero, scaleFactors );
 	}
 
 private:

@@ -11,7 +11,7 @@ PowerMeasure::PowerMeasure( float scaleFactor, float active, float apparent ) {
 }
 
 static const size_t MeasuresPerSecond = _::SampleRate / _::SamplesGroupSize;
-static const size_t SamplesInChunk = MeasuresPerSecond * 3 ;
+static const size_t SamplesInChunk = MeasuresPerSecond * 1 ;
 
 
 CalculatorBasedMeter::CalculatorBasedMeter() {
@@ -33,9 +33,6 @@ void CalculatorBasedMeter::scaleFactors( const std::pair<float, float>& factors 
     m_currentScaleFactor = factors.second;
     reset();
 }
-
-
-
 
 
 bool CalculatorBasedMeter::process( uint64_t time, const SampleBasedMeter::Measures& samples ) {
@@ -86,7 +83,6 @@ void CalculatorBasedMeter::fetch() {
     VariableMeasure voltage( m_voltageScaleFactor, voltageAccum.min(), voltageAccum.max(), 
                             voltageAccum.sum() / m_processedSamples, 
                             unscaledVoltageRms );
-
     const impl::VariableAccumulator& currentAccum =  m_accumulator.current();
     float unscaledCurrentRms = std::sqrt(currentAccum.squaredSum() / m_processedSamples);
     VariableMeasure current( m_currentScaleFactor, currentAccum.min(), currentAccum.max(), 
@@ -107,13 +103,27 @@ void CalculatorBasedMeter::fetch() {
 
 
 std::pair<uint32_t, uint32_t> CalculatorBasedMeter::fetchTimes() {
-    int64_t lastTime = m_lastTimeFetched;
-    m_lastTimeFetched = esp_timer_get_time();            //In us
-    int32_t interval = m_lastTimeFetched-lastTime;
-    interval /= 1000;
+    uint64_t lastTime = m_lastTimeFetched;
+    m_lastTimeFetched = esp_timer_get_time();           // In us
+    uint32_t interval = m_lastTimeFetched-lastTime;
+    interval /= 1000;                                   // In ms
 
-    int32_t samples = m_processedSamples * (_::SamplesGroupSize * 1000UL);
-    int32_t periods = m_sampledPeriods * 1000UL;
+    uint32_t samples = m_processedSamples * (_::SamplesGroupSize * 1000UL);
+    
+    uint32_t periods = 0;
+    if ( m_sampledPeriods > 0 ) {       // Is AC
+        periods = m_sampledPeriodsAccumulator.accumulate(m_sampledPeriods);
+        if ( m_sampledPeriodsAccumulator.full() ) {
+            // signalFrequency is measured in cents of Hz. So multiply by 100000 instead of 1000
+            periods = periods * (100000UL / SampledPeriodsAccumulator::HistorySize) ;
+        }
+        else {
+            periods = m_sampledPeriods * 100000UL;
+        }
+    }
+    else {
+        m_sampledPeriodsAccumulator.reset();
+    }
 
     return std::make_pair(samples / interval, periods / interval);
 }

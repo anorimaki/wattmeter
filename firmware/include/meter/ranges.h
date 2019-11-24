@@ -31,31 +31,34 @@ public:
         setUnderflowFactor( underflowFactor );
 	}
 
-    bool isUnderflow( uint16_t v ) const {
-        return (m_underflowMax > v) && (m_underflowMin < v);
+    bool isUnderflow( uint16_t rawValue ) const {
+        int16_t value = rawValue - m_zero;
+        return (m_underflowMax > value) && (m_underflowMin < value);
     }
 
 	int16_t applyOffset( uint16_t value ) const {
 		return value - m_zero;
 	}
 
-    static bool inRange( uint16_t value ) {
-        return  (LOWEST_INPUT_VALUE > value) && (HIGHEST_INPUT_VALUE < value);
+    static bool isOverflow( uint16_t value ) {
+        return  (LOWEST_INPUT_VALUE > value) || (HIGHEST_INPUT_VALUE < value);
     }
 
 private:
     void setUnderflowFactor( float underflowScaleFactor ) {
+        int16_t max = HIGHEST_INPUT_VALUE - m_zero;
+        int16_t min = LOWEST_INPUT_VALUE - m_zero;
         float p = underflowScaleFactor / m_scaleFactor;
-        m_underflowMax = p * HIGHEST_INPUT_VALUE;
-        m_underflowMin = p * LOWEST_INPUT_VALUE;
-        TRACE( "Underflow limits: [%u .. %u]", m_underflowMin, m_underflowMax );
+        m_underflowMax = p * max;
+        m_underflowMin = p * min;
+        TRACE( "Underflow limits: [%d .. %d]", m_underflowMin, m_underflowMax );
     }
 
 private:
 	float m_scaleFactor;
 	uint16_t m_zero;
-	uint16_t m_underflowMax;
-	uint16_t m_underflowMin;
+	int16_t m_underflowMax;
+	int16_t m_underflowMin;
 };
 
 
@@ -119,7 +122,7 @@ public:
 	int16_t process( uint16_t value ) {
 		int16_t volts = m_ranges[m_active].applyOffset(value);
         if ( m_autoRange ) {
-            updateScores( volts );
+            updateScores( value );
         }
         return volts;
     }
@@ -130,15 +133,14 @@ public:
 
 private:
     void updateScores( uint16_t volts ) {
-		// Check for overflow. active range should be decremented
-		if ( Range::inRange( volts ) ) {
+        if ( Range::isOverflow( volts ) ) {
+            ++m_overflows;
+			m_withoutOverflows = 0;
+		}
+		else {
 			if ( (m_overflows > 0) && (++m_withoutOverflows > ResetOverflowsThreshold) ) {
 				m_overflows = 0;
 			}
-		}
-		else {
-			++m_overflows;
-			m_withoutOverflows = 0;
 		}
 
         if ( m_ranges[m_active].isUnderflow( volts ) ) {

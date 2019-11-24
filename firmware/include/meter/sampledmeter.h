@@ -72,6 +72,7 @@ public:
     bool autoRange() {
         VoltageMeter::AutoRangeAction voltageAutoRangeAction = m_voltageMeasurer.autoRangeAction();
         CurrentMeter::AutoRangeAction currentAutoRangeAction = m_currentMeasurer.autoRangeAction();
+
         if ( !voltageAutoRangeAction && !currentAutoRangeAction ) {
             return false;
         }

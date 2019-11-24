@@ -15,8 +15,6 @@ static const uint N_RANGES = 3;
 
 typedef SingleSampleBasedMeter<voltage::INPUT_CHANNEL, voltage::N_RANGES> BaseMeter;
 
-BaseMeter::CalibrationData readClibrationData();
-
 void init();
 void setGPIORange( size_t range );
 
@@ -43,7 +41,7 @@ private:
 #endif
 	
 public:
-	VoltageMeter(): voltage::BaseMeter(voltage::setGPIORange) {
+	VoltageMeter(): voltage::BaseMeter(voltage::setGPIORange, "voltage") {
 		voltage::init();
 	}
 
@@ -52,7 +50,7 @@ public:
                                         scaleFactorForR(RL_1), 
                                         scaleFactorForR(RL_2+RL_1), 
                                         scaleFactorForR(RL_3+RL_2+RL_1) };
-        voltage::BaseMeter::init( defaultZero, voltage::readClibrationData, scaleFactors );
+        voltage::BaseMeter::init( defaultZero, scaleFactors );
 	}
 
 	void calibrateFactors() {
@@ -61,7 +59,7 @@ public:
 
         std::array<float, RangesSize> scaleFactors;
         for( uint i = 0; i<RangesSize; ++i ) {
-            scaleFactors[i] = 5000.0 / float(m_ranges[i].applyOffset(fiveVoltsValue[i]));
+            scaleFactors[i] = 5.0 / float(m_ranges[i].applyOffset(fiveVoltsValue[i]));
         }
         m_ranges.setScaleFactors(scaleFactors);
 	}

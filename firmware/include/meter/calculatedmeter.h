@@ -104,6 +104,60 @@ private:
     int64_t m_activePowerSum;
 };
 
+
+template<typename T, size_t HL>
+class IntegerAccumulator {
+public:
+    static const size_t HistorySizeLog2 = HL;
+    static const size_t HistorySize = 1 << HistorySizeLog2;
+    typedef std::array<T, HistorySize> History; 
+
+public:
+    IntegerAccumulator() {
+        reset();
+    }
+
+    void reset() {
+        m_sum = 0;
+        m_last = 0;
+        m_first = 0;
+        m_size = 0;
+    }
+
+    bool full() const {
+        return m_size == HistorySize;
+    }
+
+    T accumulate( T v ) {
+        if ( m_size == HistorySize ) {
+            m_sum -= m_history[m_first];
+            m_first = inc(m_first);
+        }
+        else {
+            ++m_size;
+        }
+
+        m_history[m_last] = v;
+        m_last = inc(m_last);
+
+        m_sum += v;
+        
+        return m_sum;
+    }
+
+private:
+    static size_t inc( size_t index ) {
+        return (++index == HistorySize) ? 0 : index;
+    }
+
+private:
+    T m_sum;
+    size_t m_last;
+    size_t m_first;
+    size_t m_size;
+    History m_history;
+};
+
 }
 
 
@@ -191,6 +245,7 @@ public:
         return m_sampleRate;
     }
 
+    // In tenths of Hz
     uint32_t signalFrequency() const {
         return m_signalFrequency;
     }
@@ -200,7 +255,7 @@ public:
     }
 
     const VariableMeasure& current() const {
-        return m_voltage;
+        return m_current;
     }
 
     const PowerMeasure& power() const {
@@ -219,6 +274,7 @@ private:
 class CalculatorBasedMeter {
 private:
     static const uint8_t CALLS_TO_UPDATE_SAMPLE_RATE = 5;
+    typedef impl::IntegerAccumulator<uint32_t, 4> SampledPeriodsAccumulator;
 
 public:
     typedef CalculatedMeasures Measures;
@@ -246,6 +302,7 @@ private:
     int16_t m_lastVoltage;
     size_t m_processedSamples;
     size_t m_sampledPeriods;
+    SampledPeriodsAccumulator m_sampledPeriodsAccumulator;
     int64_t m_lastTimeFetched;
     CalculatedMeasures m_currentMeasures;
 };

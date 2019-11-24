@@ -3,9 +3,8 @@
 #include "driver/i2c.h"
 #include "Adafruit_GFX.h"
 #include "font/dialog8pt.h"
-#include "font/dialog14pt.h"
+#include "font/dialog13pt.h"
 #include "font/dialog17pt.h"
-
 
 
 namespace io {
@@ -31,13 +30,12 @@ static void right( SSD1306& lcd, int16_t y, const String& text ) {
 
 
 static String adjustUnit( float value, const char* unit ) {
-    return (abs(value) < 0) ? 
+    return (abs(value) < 0.1) ? 
                 String(value * 1000, 2) + " m" + unit :
                 String(value, 2) + " " + unit ;
 }
 
 Display::Display(): m_lcd(ScreenWidth, ScreenHeight) {
-    
 }
 
 void Display::init() {
@@ -58,7 +56,7 @@ void Display::update( const meter::CalculatedMeasures& measures ) {
 
     mainHeader( measures.signalFrequency(), measures.sampleRate() );
 
-    m_lcd.setFont(&Dialog_plain_14);
+    m_lcd.setFont(&Dialog_plain_13);
     m_lcd.setCursor( 0, 31 );
     m_lcd.print( String(measures.voltage().rms(), 2) + " V" );
  
@@ -79,11 +77,22 @@ void Display::update( const meter::CalculatedMeasures& measures ) {
 
 void Display::mainHeader( uint32_t signalFrequency, uint32_t sampleRate ) {
     m_lcd.setTextColor( SSD1306::White );
-
+    
+    String title;
+    if ( signalFrequency==0 )  {
+        title = "DC";
+    }
+    else {
+        String str = String(signalFrequency / 100.0, 1);
+        if ( str.endsWith(".0") ) {
+            str = str.substring( 0, str.length() - 2 );
+        }
+        title = str + " Hz";
+    }
     m_lcd.setFont(&Dialog_plain_17);
-    String title = (signalFrequency==0) ? String("DC") :
-                                        String(signalFrequency, 10) + " Hz";
-    center( m_lcd, 15, title );
+    justify( m_lcd, 15, title, [](int16_t width) {
+        return Display::ScreenWidth/3 - (width/2); 
+    } );
 
     m_lcd.setFont(&Dialog_plain_8);
     right( m_lcd, 8, String(sampleRate, 10) );

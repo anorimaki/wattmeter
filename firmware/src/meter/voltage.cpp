@@ -1,15 +1,11 @@
 #include "meter/voltage.h"
 #include "driver/gpio.h"
+#include "nvs_flash.h"
+#include "nvs.h"
 
 namespace meter {
 
 namespace voltage {
-
-BaseMeter::CalibrationData readClibrationData() {
-	return {
-		.zeros = { 0, 0, 0 }
-	};
-}
 
 static const gpio_num_t HighIOPin = GPIO_NUM_33;
 static const gpio_num_t LowIOPin = GPIO_NUM_32;
