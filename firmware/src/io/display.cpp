@@ -58,10 +58,16 @@ void Display::update( const meter::CalculatedMeasures& measures ) {
 
     m_lcd.setFont(&Dialog_plain_13);
     m_lcd.setCursor( 0, 31 );
-    m_lcd.print( String(measures.voltage().rms(), 2) + " V" );
+    float voltage = (measures.signalFrequency() == 0) ? 
+                    measures.voltage().mean() :
+                    measures.voltage().rms();
+    m_lcd.print( String(voltage, 2) + " V" );
  
     m_lcd.setCursor( 0, 47 );
-    m_lcd.print( adjustUnit(measures.current().rms(), "A" ) );
+    float current = (measures.signalFrequency() == 0) ? 
+                    measures.current().mean() :
+                    measures.current().rms();
+    m_lcd.print( adjustUnit(current, "A" ) );
 
     const meter::PowerMeasure& power = measures.power();
     m_lcd.setCursor( 0, 63 );

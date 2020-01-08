@@ -22,7 +22,7 @@
 namespace meter {
 
 
-template <adc_channel_t Channel, size_t N_RANGES>
+template <adc1_channel_t Channel, size_t N_RANGES>
 class SingleSampleBasedMeter {
 private:
     typedef SingleSampleBasedMeter<Channel, N_RANGES> ThisType;
@@ -40,7 +40,7 @@ public:
 	
 public:
     static const size_t RangesSize = N_RANGES;
-    static const adc_channel_t AdcChannel = Channel;
+    static const adc1_channel_t AdcChannel = Channel;
 	static const size_t AutoRange = N_RANGES;
 
 public:

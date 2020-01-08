@@ -4,19 +4,18 @@
 
 namespace ota {
 
-volatile bool inProgress = false;
-
-void init( const char* hostname ) {
+void init( const char* hostname, std::function<void()> onStartCallback ) {
     static unsigned int previousProgressPerCent;
 
-	ArduinoOTA.onStart([]() {
-        inProgress = true;
+	ArduinoOTA.onStart([onStartCallback]() {
+        onStartCallback();
 		TRACE("OTA: Update start");
 	});
+
 	ArduinoOTA.onEnd([]() {
-        inProgress = false;
-		TRACE("OTA: Update end");
+        TRACE("OTA: Update end");
 	});
+
 	ArduinoOTA.onProgress([&](unsigned int progress, unsigned int total) {
         unsigned int progressPerCent = progress / (total / 100);
         if ( previousProgressPerCent != progressPerCent ) {
@@ -24,9 +23,9 @@ void init( const char* hostname ) {
             previousProgressPerCent = progressPerCent;
         }
 	});
+
 	ArduinoOTA.onError([](ota_error_t error) {
-        inProgress = false;
-		if (error == OTA_AUTH_ERROR) {
+        if (error == OTA_AUTH_ERROR) {
 			TRACE_ERROR( F("OTA: Auth Failed") );
 		}
 		else if (error == OTA_BEGIN_ERROR) {
@@ -42,6 +41,7 @@ void init( const char* hostname ) {
 			TRACE_ERROR( F("End Failed") );
 		}
 	});
+
 	ArduinoOTA.setHostname(hostname);
 	ArduinoOTA.begin();
 }

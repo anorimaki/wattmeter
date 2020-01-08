@@ -46,9 +46,9 @@
 static esp_err_t i2c_master_init() {
     i2c_config_t conf;
     conf.mode = I2C_MODE_MASTER;
-    conf.sda_io_num = GPIO_NUM_27;
+    conf.sda_io_num = GPIO_NUM_4;
     conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
-    conf.scl_io_num = GPIO_NUM_26;
+    conf.scl_io_num = GPIO_NUM_15;
     conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
     conf.master.clk_speed = 400000;             //Max 600000 Hz
     i2c_param_config(I2C_NUM_0, &conf);

@@ -10,7 +10,7 @@ PowerMeasure::PowerMeasure( float scaleFactor, float active, float apparent ) {
     m_factor = active / apparent;
 }
 
-static const size_t MeasuresPerSecond = _::SampleRate / _::SamplesGroupSize;
+static const size_t MeasuresPerSecond = adc::SampleRate / adc::SamplesGroupSize;
 static const size_t SamplesInChunk = MeasuresPerSecond * 1 ;
 
 
@@ -108,7 +108,7 @@ std::pair<uint32_t, uint32_t> CalculatorBasedMeter::fetchTimes() {
     uint32_t interval = m_lastTimeFetched-lastTime;
     interval /= 1000;                                   // In ms
 
-    uint32_t samples = m_processedSamples * (_::SamplesGroupSize * 1000UL);
+    uint32_t samples = m_processedSamples * (adc::SamplesGroupSize * 1000UL);
     
     uint32_t periods = 0;
     if ( m_sampledPeriods > 0 ) {       // Is AC

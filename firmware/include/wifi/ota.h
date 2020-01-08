@@ -1,11 +1,11 @@
 #ifndef OTA_H
 #define OTA_H
 
+#include <functional>
+
 namespace ota {
 
-extern volatile bool inProgress;
-
-void init( const char* hostName );
+void init( const char* hostName, std::function<void()> onStart );
 void handle();
 
 }

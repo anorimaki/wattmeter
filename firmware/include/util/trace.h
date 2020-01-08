@@ -2,6 +2,8 @@
 #define UTIL_TRACE_H_
 
 #include "Arduino.h"
+#include <sstream>
+#include <iterator>
 
 #define SerialPort Serial
 
@@ -16,6 +18,19 @@ uint32_t timeInterval( const std::string& id );
 
 inline void traceTimeInterval( const std::string& id ) {
     Serial.printf( "%s time interval %u ms\n", id.c_str(), timeInterval(id) / 1000 );
+}
+
+template <typename IT>
+inline std::string join( IT begin, IT end ) {
+    std::stringstream ss;
+    if ( begin != end ) {
+        ss << *begin;
+    }
+    std::for_each( begin+1, end, [&ss]( const typename std::iterator_traits<IT>::value_type& v ) {
+            ss << ", ";
+            ss << v;
+        });
+    return ss.str();
 }
 
 }
@@ -35,7 +50,7 @@ inline void traceTimeInterval( const std::string& id ) {
 		return v; }
 
 #define TRACE_ERROR_AND_RETURN(v) { \
-		TRACE_ERROR(""); \
+		TRACE_ERROR("ERROR"); \
 		return v; }
 
 #define TRACE_ESP_ERROR_CHECK(x) do {                               \

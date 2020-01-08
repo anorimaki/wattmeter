@@ -15,15 +15,23 @@
 #include <algorithm>
 #include <Arduino.h>
 
+#include "meter/adc.h"
+
+#define MAIN
+
 static const char* hostname="wattmeter";
-static const adc_channel_t ZERO_ADC_CHANNEL = ADC_CHANNEL_6;
+static const adc1_channel_t ZERO_ADC_CHANNEL = ADC1_CHANNEL_6;
 
 meter::SampleBasedMeter sampledMeter;
 meter::CalculatorBasedMeter calculatedMeter;
 
 web::Server webServer(8080);
 io::Display display;
+bool running;
 
+#if !defined(MAIN)
+#include "meter/experiment.h"
+#endif
 
 uint16_t defaultZero() {
     typedef meter::Sampler<ZERO_ADC_CHANNEL> ZeroSampler;
@@ -40,7 +48,7 @@ uint16_t defaultZero() {
 
 
 void showInfo( void* ) {
-    while(!ota::inProgress) {
+    while(running) {
         display.update( calculatedMeter.get() );
     }
     TRACE( "showInfo task finished" );
@@ -55,7 +63,7 @@ void readSamples( void* ) {
     std::pair<float, float> scaleFactors = sampledMeter.scaleFactors();
     calculatedMeter.scaleFactors( scaleFactors );
 
-    while(!ota::inProgress) {
+    while(running) {
         uint64_t time = sampledMeter.read( sampledMeasures );
 //TRACE_TIME_INTERVAL_BEGIN(readOp);
         webServer.send( time, scaleFactors, sampledMeasures );
@@ -67,6 +75,8 @@ void readSamples( void* ) {
         }
 //TRACE_TIME_INTERVAL_END(readOp);  
     }
+    sampledMeter.stop();
+
     TRACE( "readSamples task finished" );
     vTaskDelete(NULL);
 }
@@ -81,14 +91,19 @@ void setup()
 #ifdef DEBUG_ESP_CORE
 	Serial.setDebugOutput(true);
 #endif
+    running = true;
 
     display.init(); 
 
 	wifi::init(hostname);
-	ota::init(hostname);
+	ota::init(hostname, []() {
+            running = false;
+            sampledMeter.stop();
+        });
 
     commands::init();
 
+#if defined(MAIN)
 	uint16_t zero = defaultZero();
     sampledMeter.init( zero );
 	
@@ -100,6 +115,9 @@ void setup()
 
     TaskHandle_t showInfoTask;
     xTaskCreatePinnedToCore( showInfo, "showInfo", 2048, NULL, 1, &showInfoTask, 0 );
+#else
+    experiment::init();
+#endif
 }
 
 
@@ -114,6 +132,7 @@ void loop()
 
     ota::handle();
 
+#if defined(MAIN)
 	if ( commands::isZerosCalibrationRequest() ) {
         sampledMeter.calibrateZeros();
 	}
@@ -121,6 +140,7 @@ void loop()
 	if ( commands::isFactorsCalibrationRequest() ) {
         sampledMeter.calibrateFactors();
 	}
+#endif
 
     vTaskDelay( 10 / portTICK_PERIOD_MS );
 }

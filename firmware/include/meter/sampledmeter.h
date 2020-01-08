@@ -9,7 +9,7 @@ namespace meter {
 
 class SampleBasedMeter {
 public:
-    static const size_t MeasuresSize = _::GroupedSamplesSize;
+    static const size_t MeasuresSize = adc::GroupedSamplesSize;
 
     class Measure {
     public:
@@ -41,12 +41,24 @@ public:
         m_currentMeasurer.init(defaultZero);
     }
 
+    VoltageMeter& voltageMeter() {
+        return m_voltageMeasurer;
+    }
+
+    CurrentMeter& currentMeter() {
+        return m_currentMeasurer;
+    }
+
     std::pair<float, float> scaleFactors() {
         return std::make_pair( m_voltageMeasurer.scaleFactor(), m_currentMeasurer.scaleFactor() );
     }
 
     void start() {
         m_sampler.start();
+    }
+
+    void stop() {
+        m_sampler.stop();
     }
 
     uint64_t read( Measures& result ) {
@@ -58,6 +70,7 @@ public:
 
     void calibrateZeros() {
         m_sampler.pauseWhileAction( [&]() {
+            characterizeAdc( DAC_CHANNEL_1, ADC1_CHANNEL_4, ADC1_CHANNEL_6, ADC1_CHANNEL_7 );
             m_voltageMeasurer.calibrateZeros();
             m_currentMeasurer.calibrateZeros();
         });

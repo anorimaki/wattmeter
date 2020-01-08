@@ -1,25 +1,28 @@
 #ifndef METER_SAMPLER_H
 #define METER_SAMPLER_H
 
+//#define ADC_DMA
+
+#ifdef ADC_DMA
+#include "meter/adc_dma.h"
+#define ADC_IMPL dma
+#else
+#include "meter/adc_direct.h"
+#define ADC_IMPL direct
+#endif
+
 #include "util/trace.h"
 #include "driver/adc.h"
-#include "nonstd/span.hpp"
+#include "driver/dac.h"
 #include "freertos/semphr.h"
 #include <array>
 #include <type_traits>
 #include <functional>
 
 
-
 namespace meter {
 
 namespace _ {
-
-const size_t SampleRate = 44000;        //Min: 6000
-const size_t SamplesGroupSize = 16;
-const size_t BufferSize = 1024;      //in number of samples (not bytes)
-const size_t BufferCount = 2;
-const size_t GroupedSamplesSize = BufferSize / SamplesGroupSize;
 
 // - Sample rate for various channels: SampleRate / NumChannels. For 2 channels (V and I):
 //      22000 samples/s (period = 45.45 us). A 50Hz signal is sampled 440 times per cycle.
@@ -29,52 +32,45 @@ const size_t GroupedSamplesSize = BufferSize / SamplesGroupSize;
 // - Buffer sample time: BufferSize / SampleRate = 23.272 ms. It's nearly a period of
 //   a 50Hz sinusoidal (20ms).
 
-template <adc_channel_t Channel, size_t CurrentPosition, adc_channel_t... Channels>
+template <adc1_channel_t Channel, size_t CurrentPosition, adc1_channel_t... Channels>
 struct FindChannelPosition {};
 
-template <adc_channel_t Channel, size_t CurrentPosition, adc_channel_t Current>
+template <adc1_channel_t Channel, size_t CurrentPosition, adc1_channel_t Current>
 struct FindChannelPosition<Channel, CurrentPosition, Current>:
 		std::conditional<Channel==Current, 
 						std::integral_constant<size_t, CurrentPosition>, 
 						void>::type {};
 
-template <adc_channel_t Channel, size_t CurrentPosition, 
-			adc_channel_t Current, adc_channel_t... Channels>
+template <adc1_channel_t Channel, size_t CurrentPosition, 
+			adc1_channel_t Current, adc1_channel_t... Channels>
 struct FindChannelPosition<Channel, CurrentPosition, Current, Channels...>: 
 		std::conditional<Channel==Current, 
 						std::integral_constant<size_t, CurrentPosition>, 
 						FindChannelPosition<Channel, CurrentPosition+1, Channels...> >::type {};
 
-template <adc_channel_t First, adc_channel_t... Channels>
+template <adc1_channel_t First, adc1_channel_t... Channels>
 struct ChannelsTraits {
-	template <adc_channel_t Channel>
+	template <adc1_channel_t Channel>
 	struct ChannelPosition: FindChannelPosition<Channel, 0, First, Channels...> {};
 
 	static const size_t size = 1 + sizeof...(Channels);
 
-	typedef std::array<adc_channel_t, size> Array;
+	typedef std::array<adc1_channel_t, size> Array;
 };
 
-bool receivedData();
-
-typedef std::array<uint16_t, _::BufferSize> Buffer;
-
-// Returns time in us when the first value was sampled
-int64_t readData( Buffer& buffer );
-
-void start( const nonstd::span<const adc_channel_t>& channels );
-
-void stop();
-
 uint16_t rawToMilliVolts( uint16_t );
+
+uint16_t rawToTenthsOfMilliVolt( uint16_t );
 
 }
 
 
 void setAdcVref( uint16_t value );
+void characterizeAdc( dac_channel_t dac, adc1_channel_t adcChannel, 
+                    adc1_channel_t adcHighRef, adc1_channel_t adcLowRef );
 
 
-template <adc_channel_t... Channels>
+template <adc1_channel_t... Channels>
 class Sampler {
 private:
 	typedef _::ChannelsTraits<Channels...> ChannelsTraits;
@@ -90,7 +86,7 @@ public:
 		Sample( const std::array<uint16_t, ChannelsTraits::size>& variables ):
 			m_variables(variables){}
 
-		template <adc_channel_t Channel>
+		template <adc1_channel_t Channel>
 		uint16_t get() const {
 			return m_variables[ChannelsTraits::template ChannelPosition<Channel>::value];
 		}
@@ -99,7 +95,7 @@ public:
 		std::array<uint16_t, ChannelsTraits::size> m_variables;
 	};
 
-	typedef std::array<Sample, _::GroupedSamplesSize> Samples;
+	typedef std::array<Sample, adc::GroupedSamplesSize> Samples;
 
 public:
 	Sampler(): m_channels({ Channels... }) {
@@ -111,13 +107,13 @@ public:
     }
 
 	void start() {
-		_::start( nonstd::span<const adc_channel_t>( m_channels ) );
+		adc::ADC_IMPL::start( nonstd::span<const adc1_channel_t>( m_channels ) );
         xSemaphoreGive( m_accessSemaphore );
 	}
 
 	void stop() {
         xSemaphoreTake( m_accessSemaphore, portMAX_DELAY );
-		_::stop();
+		adc::ADC_IMPL::stop();
 	}
 
     void pauseWhileAction( std::function<void()> action ) {
@@ -129,22 +125,22 @@ public:
 	uint64_t read( Samples& samples ) {
         xSemaphoreTake( m_accessSemaphore, portMAX_DELAY );
 
-		_::Buffer buffer;
-		uint64_t firstSampleTime = _::readData( buffer );
+		adc::Buffer buffer;
+		uint64_t firstSampleTime = adc::ADC_IMPL::readData( buffer );
 
         xSemaphoreGive( m_accessSemaphore );
 
-        _::Buffer::const_iterator it = buffer.begin();
+        adc::Buffer::const_iterator it = buffer.begin();
 		size_t nSamples = 0;
 		while( it < buffer.end() ) {
-			samples[nSamples] = process( nonstd::span<const uint16_t>( it, _::SamplesGroupSize ) );
-            it += _::SamplesGroupSize;
+			samples[nSamples] = process( nonstd::span<const uint16_t>( it, adc::SamplesGroupSize ) );
+            it += adc::SamplesGroupSize;
 			++nSamples;
 		}		
 		return firstSampleTime;
 	}
 
-	template <adc_channel_t Channel>
+	template <adc1_channel_t Channel>
 	uint16_t readAndAverage( uint nBuffers = 1 ) {
 		size_t totalRead = 0;
 		uint32_t totalSum = 0;
@@ -152,7 +148,7 @@ public:
 			Samples samples;
 			read( samples );
 
-			totalRead += _::GroupedSamplesSize;
+			totalRead += adc::GroupedSamplesSize;
 			totalSum += std::accumulate( samples.begin(), samples.end(), 0, 
 					[] (size_t sum, const Sample& sample) {
 						return sum + sample.template get<Channel>();
@@ -187,9 +183,10 @@ private:
 		std::for_each( values.begin(), values.end(), [&](uint16_t sample) {
 			uint16_t channel = sample >> 12;
 			uint16_t value = sample & 0xFFF;
-            size_t pos = findChannelPosition(static_cast<adc_channel_t>(channel));
+            size_t pos = findChannelPosition(static_cast<adc1_channel_t>(channel));
             if ( pos < measures.size() ) {
-                measures[pos].add(value);
+                uint16_t voltage = _::rawToTenthsOfMilliVolt(value);
+                measures[pos].add( voltage );
             }
 		});
 
@@ -197,12 +194,13 @@ private:
 		std::transform( measures.cbegin(), measures.cend(), variables.begin(), 
 				[](const Measure& measure) {
 					uint16_t average = measure.average();
-                    return _::rawToMilliVolts(average);
+                  //  return _::rawToMilliVolts(average);
+                    return average;
 				});
 		return Sample(variables);
 	}
 
-	size_t findChannelPosition(adc_channel_t channel) {
+	size_t findChannelPosition(adc1_channel_t channel) {
 		typename ChannelsTraits::Array::const_iterator it = 
 						std::find( m_channels.begin(), m_channels.end(), channel );
 		if ( it == m_channels.end() ) {

@@ -10,7 +10,7 @@ namespace meter {
 
 namespace current {
 
-static const adc_channel_t INPUT_CHANNEL = ADC_CHANNEL_3;
+static const adc1_channel_t INPUT_CHANNEL = ADC1_CHANNEL_3;
 static const uint N_RANGES = 3;
 
 typedef SingleSampleBasedMeter<INPUT_CHANNEL, N_RANGES> BaseMeter;

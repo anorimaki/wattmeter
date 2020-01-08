@@ -10,7 +10,7 @@ namespace meter {
 
 namespace voltage {
 
-static const adc_channel_t INPUT_CHANNEL = ADC_CHANNEL_0;
+static const adc1_channel_t INPUT_CHANNEL = ADC1_CHANNEL_0;
 static const uint N_RANGES = 3;
 
 typedef SingleSampleBasedMeter<voltage::INPUT_CHANNEL, voltage::N_RANGES> BaseMeter;
@@ -46,11 +46,21 @@ public:
 	}
 
 	void init( uint16_t defaultZero ) {
+       /* const std::array<float, RangesSize> scaleFactors = {
+                                        scaleFactorForR(RL_1), 
+                                        scaleFactorForR(RL_2+RL_1), 
+                                        scaleFactorForR(RL_3+RL_2+RL_1) }; */
         const std::array<float, RangesSize> scaleFactors = {
                                         scaleFactorForR(RL_1), 
                                         scaleFactorForR(RL_2+RL_1), 
-                                        scaleFactorForR(RL_3+RL_2+RL_1) };
+                                        0.013712 /*0.014163*/ /*0.013812*/ /*0.013914*/ /* 0.013990 */ }; 
         voltage::BaseMeter::init( defaultZero, scaleFactors );
+
+#if 1
+        std::array<uint16_t, 3> z;
+        z.fill(/*514*/ /*515*/ 516);
+        m_ranges.setZeros( z );
+#endif
 	}
 
 	void calibrateFactors() {

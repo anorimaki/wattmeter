@@ -13,8 +13,8 @@ namespace meter {
 class Range {
 public:
 	// From Espressif ADC documentation: 0dB attenuation (ADC_ATTEN_DB_0) between 100 and 950mV
-	static const uint16_t HIGHEST_INPUT_VALUE = 950;
-	static const uint16_t LOWEST_INPUT_VALUE = 100;
+	static const uint16_t HIGHEST_INPUT_VALUE = 9500;
+	static const uint16_t LOWEST_INPUT_VALUE = 1000;
 
 public:
     uint16_t zero() const { return m_zero; }
